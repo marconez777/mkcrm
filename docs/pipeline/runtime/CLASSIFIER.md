@@ -134,10 +134,22 @@ O foco central da dor de cabeça em movimentos automatizados mora na comunicaç�
 
 ### O Caminho do General Move (Maestro)
 Se o Maestro sugerir um novo estágio, a decisão será barrada se:
-- **Conflito Humano 24h:** O sistema checa se a secretária/atendente moveu o lead manualmente nas últimas 24 horas. Se sim, **bloqueio imediato**. A IA não deve brigar com o humano.
-- **Estágios Restritos:** A IA jamais pode mover leads para "Consulta agendada" ou estágios de fechamento. Esses estão na lista de `HUMAN_SCHEDULING_STAGES`. Se o Maestro tentar, o move falha com o erro `ai_scheduling_disabled_by_human_transition`.
-- **Baixa Confiança:** Apenas veredictos com `confidence >= 0.8` autorizam o general move.
-- **Lock D3 ("Paciente Antigo"):** Se o lead estiver no estágio "Paciente antigo", o Classifier **nem tenta** sugerir movimentações. Ele continua lendo a conversa para extrair tags, mas não altera o estágio.
+- ✅ **Estágios Restritos:** A IA jamais pode mover leads para "Consulta agendada", "Tratamento agendado", "Consulta finalizada" ou "1ª Sessão Finalizada". Esses estão em `HUMAN_SCHEDULING_STAGES` (`apply.ts`). Se o Maestro tentar, o move falha com `ai_scheduling_disabled_by_human_transition`.
+- ✅ **Baixa Confiança:** Apenas veredictos com `confidence >= 0.8` autorizam o general move.
+- ✅ **Lock D3 ("Paciente Antigo"):** Se o lead estiver no estágio "Paciente antigo", o Classifier **nem tenta** sugerir movimentações. Ele continua lendo a conversa para extrair tags, mas não altera o estágio.
+
+> ❌ **Conflito Humano 24h — NÃO IMPLEMENTADO.** Versões anteriores deste doc afirmavam
+> que um move manual da secretária nas últimas 24h bloqueia a IA. **Isso não acontece.**
+> O `apply.ts` consulta `lead_stage_history` mas descarta o resultado
+> (`const noRecentHumanMove = true` — a variável `recentHuman` fica sem uso), tanto no
+> caminho `general` quanto no `nurture`. Em consequência, `recent_human_move_24h` é um
+> motivo inalcançável na telemetria: se você o vir, é bug de outra coisa.
+> Rastreado em `KNOWN_ISSUES.md`.
+
+> ⚠️ **General move não tem `ruleKey`.** A chamada a `pipelineMove` omite o `ruleKey` de
+> propósito ("forçando 100% automação"), então o gate G3 é pulado neste caminho — não há
+> toggle por regra para desligá-lo. O único kill-switch é `automation.classifier.enabled`,
+> que derruba o classifier inteiro.
 
 ### O Caminho do Nurture Move (Nutrição Inativa)
 Muitos leads desistem antes mesmo de serem agendados. O Agente tem um *bypass* caso a clínica permita:
@@ -145,7 +157,21 @@ Muitos leads desistem antes mesmo de serem agendados. O Agente tem um *bypass* c
 - Se o estágio de onde ele está partindo for inicial ("Novo" ou "Qualificação").
 - E **jamais** se ele já tiver histórico de tratamento (ele não pode ir pra Nutrição Inativa se já for Paciente Antigo).
 
-> **Atenção aos Triggers vs. Apply.ts:** Se a movimentação do `apply.ts` falha silenciosamente (o lead não avança no kanban, mas as tags são aplicadas), quase sempre é o **Conflito Humano de 24h** atuando, ou o Estágio que foi sugerido mudou de nome no banco (`pipeline_stages.name`) e a IA não conseguiu achar o ID pelo nome correto. Observe sempre os Logs em `ai_usage` e `pipeline_run_items` sob o código `general_guard_failed`.
+> **Atenção — move falhou silenciosamente?** (lead não avança no kanban, mas as tags são
+> aplicadas). Cheque nesta ordem, lendo `payload.applied.stage_suggestion_only.reason`
+> no `lead_events.type='auto:classifier'`:
+>
+> | `reason` | Causa |
+> |---|---|
+> | `ai_scheduling_disabled_by_human_transition` | destino está em `HUMAN_SCHEDULING_STAGES` — por design |
+> | `stage_alias_not_found` | o canônico sugerido não tem linha em `stage_canonical_aliases` para este pipeline. **Causa mais comum.** `resolveStageId` do `apply.ts` não tem fallback por nome (diferente do `pipeline-deterministic`, que tem) |
+> | `general_guard_failed:confidence<0.8` | Maestro inseguro |
+> | `locked_in_paciente_antigo` | guard D3 |
+> | `gate_g1_manual_lock_until:*` | lead congelado por `ciclo_concluido` ou lock manual |
+> | `gate_g2_destination_locked:*` | stage destino com `lock_auto_move` |
+> | `clinic_not_allowlisted` | clínica fora de `pipeline_automation_allowlist` |
+>
+> **Não** procure por conflito humano de 24h — esse guard não existe (ver acima).
 
 ---
 

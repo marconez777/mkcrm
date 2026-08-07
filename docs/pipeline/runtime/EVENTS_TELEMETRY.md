@@ -128,7 +128,7 @@ A partir de 2026-06-20 (refactor V6 — 5 agentes), o payload inclui o bloco `ag
       "requested_remove": ["1ª consulta", "antigo"]
     },
     "custom_fields": { "consulta_agendada_em": "2026-06-18T10:30:00-03:00" },
-    "custom_fields_rejected": [
+    "custom_fields": { "rejected": [
       { "key": "consulta_agendada_em", "raw_value": "2025-01-10T08:00:00Z", "reason": "in_past" }
     ],
     "blocked_by_g10": []
@@ -203,10 +203,10 @@ GROUP BY type;
 
 ```sql
 SELECT lead_id, created_at,
-       jsonb_array_elements(payload->'applied'->'custom_fields_rejected') AS rejection
+       jsonb_array_elements(payload->'applied'->'custom_fields'->'rejected') AS rejection
 FROM lead_events
 WHERE type='auto:classifier'
-  AND jsonb_array_length(payload->'applied'->'custom_fields_rejected') > 0
+  AND jsonb_array_length(payload->'applied'->'custom_fields'->'rejected') > 0
 ORDER BY created_at DESC;
 ```
 

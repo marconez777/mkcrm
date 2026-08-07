@@ -55,13 +55,35 @@ Consulta finalizada · 1ª Sessão Finalizada · Sem resposta ·
 Nutrição inativa · Nutrição Antigos · Paciente antigo · B2B / Stakeholders
 ```
 
-Nota: o canônico `Novo` resolve para o stage real **"Leads de entrada"** via alias.
-
 ### Aliases seedados
+
+⚠️ **Esta tabela lista o que as migrations *tentam* seedar, não o que existe no banco.** O seed
+de `20260618022933` casa por `LOWER(pipeline_stages.name) = LOWER(<alias>)`. Se nenhuma coluna
+real tem aquele nome, a linha simplesmente não é criada — sem erro.
+
+**Dois canônicos não têm linha em nenhuma migration:**
+
+| Canônico | Por quê | Efeito |
+|---|---|---|
+| `Novo` | O seed procura uma coluna chamada "Novo". A coluna real da ÓR chama-se **"Leads de entrada"**, que não está na lista de aliases. | `ruleNovoLead` → `stage_not_found:Novo`. Pior: `ruleSecretaryReplied` resolve `novoId = null`, então `lead.stage_id !== novoId` é verdadeiro para todo lead → **`skipped: "not_in_novo"` sempre**. A automação Novo→Qualificação nunca dispara. É o `not_in_novo` observado nos logs e registrado no item #6 do `KNOWN_ISSUES.md`. |
+| `Desqualificado` | Nenhum seed mapeia esse canônico. A coluna real chama-se "Desqualificado / Fora de escopo". | O classifier nunca consegue mover para lá → `stage_alias_not_found`. |
+
+**Antes de agir, confirme no banco** (aliases podem ter sido inseridos pela UI, que tem
+`GRANT INSERT`):
+
+```sql
+SELECT canonical_name, stage_id FROM stage_canonical_aliases
+WHERE clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1' ORDER BY canonical_name;
+```
+
+Nota: `20260621220801` também seedou canônicos em **snake_case** (`em_tratamento`,
+`primeira_sessao_finalizada`, `nutricao_inativa`, `nutricao_antigos`, `geladeira_de_leads`).
+Nenhum código consulta esses nomes — a lista canônica do TS usa os nomes de exibição.
+São linhas mortas convivendo com as boas.
 
 | Alias `name` (case-insensitive) | `canonical_name` |
 |---|---|
-| `Novo` | Novo |
+| `Novo` | Novo — ❌ **não resolve**, ver acima |
 | `Qualificação`, `Qualificacao` | Qualificação |
 | `Consulta agendada`, `consulta agendada`, `Reunião Agendada`, `reuniao agendada` | Consulta agendada |
 | `Tratamento agendado`, `Procedimento agendado` | Tratamento agendado |
@@ -72,7 +94,17 @@ Nota: o canônico `Novo` resolve para o stage real **"Leads de entrada"** via al
 | `Nutrição Antigos`, `Nutrição Antigos (>60d)` | Nutrição Antigos |
 | `Paciente antigo` | Paciente antigo |
 
-Se o canônico não bate via alias, o classifier tenta `ilike` exato em `pipeline_stages.name` no mesmo pipeline. Falha total → o move é abortado com `stage_alias_not_found:<canon>` e fica registrado no payload do `auto:classifier`.
+⚠️ **Os dois resolvedores se comportam de forma diferente — isto importa muito:**
+
+| Componente | Fallback por nome? |
+|---|---|
+| `pipeline-deterministic::resolveStageId` | ✅ sim — se o alias falha, tenta `ilike` exato em `pipeline_stages.name` no mesmo pipeline |
+| `pipeline-classify/apply.ts::resolveStageId` | ❌ **não** — consulta só `stage_canonical_aliases` e devolve `null` |
+
+Logo, um canônico sem alias pode funcionar pela regra determinística (se o nome da coluna
+bater) e ainda assim ser inalcançável para a IA. Falha do lado do classifier → move abortado
+com `stage_alias_not_found`, registrado em
+`lead_events.payload.applied.stage_suggestion_only.reason` do `auto:classifier`.
 
 ## Excluídos do A1 (position-auditor)
 

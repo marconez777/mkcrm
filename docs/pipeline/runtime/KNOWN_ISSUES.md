@@ -21,6 +21,61 @@ related_docs:
   - docs/pipeline/runtime/plan-correcoes.md
 ---
 
+## -12. Guard "conflito humano 24h" é código morto (ABERTO — 2026-08-07)
+
+**Sintoma**: a IA move um card que a secretária acabou de mover à mão, minutos antes.
+
+**Causa-raiz**: em `pipeline-classify/apply.ts`, tanto no caminho `nurture` quanto no
+`general`, o código consulta `lead_stage_history` procurando moves humanos nas últimas 24h e
+**descarta o resultado**:
+
+```ts
+const { data: recentHuman } = await client
+  .from("lead_stage_history")
+  .select("id").eq("lead_id", lead.id)
+  .gte("moved_at", since).not("moved_by_user_id", "is", null).limit(1);
+const noRecentHumanMove = true;   // ← resultado ignorado; `recentHuman` fica sem uso
+```
+
+**Impactos**:
+1. A proteção anunciada em `CLASSIFIER.md` e `GATES.md` nunca existiu (docs corrigidos em 2026-08-07).
+2. `recent_human_move_24h` é um motivo **inalcançável** em
+   `applied.stage_suggestion_only.reason` — ninguém nunca o verá.
+3. Duas queries desperdiçadas por lead classificado.
+
+**Fix sugerido**: `const noRecentHumanMove = !recentHuman;` nos dois pontos. Antes de aplicar,
+medir quantos moves seriam bloqueados — pode derrubar bastante automação de uma vez.
+
+**Status**: ABERTO.
+
+## -11. Canônicos `Novo` e `Desqualificado` sem alias (ABERTO — 2026-08-07)
+
+**Sintoma**: `auto:secretary-replied` sempre retorna `skipped: "not_in_novo"` — é exatamente o
+que o item #6 observou nos logs e atribuiu ao wiring de trigger.
+
+**Causa-raiz**: o seed de aliases (`20260618022933`) casa por
+`LOWER(pipeline_stages.name) = LOWER(<alias>)`. A coluna real chama-se **"Leads de entrada"**,
+que não consta da lista de aliases; e nenhum seed mapeia `Desqualificado` (coluna real:
+"Desqualificado / Fora de escopo"). Sem linha em `stage_canonical_aliases`,
+`resolveStageId` devolve `null`.
+
+Em `ruleSecretaryReplied` isso é silencioso e total:
+```ts
+const novoId = await resolveStageId(..., "Novo");   // null
+if (lead.stage_id !== novoId) return { skipped: "not_in_novo" };   // sempre verdadeiro
+```
+
+**Confirmar antes de agir** (aliases podem ter sido inseridos pela UI):
+```sql
+SELECT canonical_name FROM stage_canonical_aliases
+WHERE clinic_id='cf038458-457d-4c1a-9ac4-c88c3c8353a1'
+  AND canonical_name IN ('Novo','Desqualificado');
+```
+
+**Fix**: migration inserindo as duas linhas. Ver `playbooks/add-stage.md`.
+
+**Status**: ABERTO. Relacionado ao item #6.
+
 ## 2026-06-23 — `classify_timeout_*` e `No object generated`
 
 Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
@@ -266,16 +321,16 @@ SELECT count(*) FROM automation_runs ar
 - `pipeline-classify/index.ts:164-180` — função `fmtBR()` formata todo timestamp em `America/Sao_Paulo` via `Intl.DateTimeFormat('pt-BR')`. Mensagens e `LeadContext` usam esse helper.
 - Prompt do sistema (linhas 261–266) — **REGRAS PARA DATAS**: relativas resolvidas a partir do timestamp da **mensagem** que cita a data, não de `now()`. Formato ISO obrigatório com offset `-03:00`. Ambiguidade → não preencher.
 - `sanitizeDateField()` (linhas 290–306) — rejeita `t < anchor-2h` (`in_past`), rejeita `t > anchor+90d` (`too_far_future`). `anchor` = timestamp da última mensagem lida.
-- Rejeições registradas em `lead_events.payload.applied.custom_fields_rejected[]`.
+- Rejeições registradas em `lead_events.payload.applied.custom_fields.rejected[]`.
 
 **Status**: ✅ Corrigido. Verificar via:
 
 ```sql
 SELECT lead_id, created_at,
-       payload->'applied'->'custom_fields_rejected' AS rejections
+       payload->'applied'->'custom_fields'->'rejected' AS rejections
 FROM lead_events
 WHERE type='auto:classifier'
-  AND jsonb_array_length(payload->'applied'->'custom_fields_rejected') > 0
+  AND jsonb_array_length(payload->'applied'->'custom_fields'->'rejected') > 0
 ORDER BY created_at DESC;
 ```
 
@@ -292,13 +347,16 @@ ORDER BY created_at DESC;
 
 **Status**: ✅ Corrigido.
 
-## 4. Tag de paciente "1ª consulta" não está na whitelist nem é validada (GAP estrutural)
+## 4. Whitelist de tags não consultada (OBSOLETO — ver item -7)
 
-A whitelist `automation.v42.allowed_tags` em `app_settings` **não é consultada por código**. O classifier escreve qualquer string que sair de `tags_suggested`. Por isso o snapshot mostra tags como `audit:b22`, `PHQ-9 Depressão`, `LEAD TRÁFEGO` convivendo com as tags de sistema.
-
-**Status**: não corrigido. Impacto baixo (não quebra nada), mas dificulta análises.
-
-**Sugestão**: criar `_shared/tag-whitelist.ts` lido pelo classifier antes do UPDATE — silenciosamente descarta o que não está na whitelist + tags listadas em manual-tags da clínica.
+> ❌ **Esta entrada estava errada e foi mantida por rastreabilidade.** Afirmava que
+> `automation.v42.allowed_tags` **não é consultada por código**. Isso deixou de ser verdade:
+> o `apply.ts` lê essa chave (`getAllowedTags()`) e descarta o que não está na lista,
+> registrando em `applied.tags.dropped_by_whitelist`. A correção está documentada no
+> **item -7 (2026-06-22)**, que inclusive relata o efeito colateral oposto — a whitelist
+> descartando 99% das tags sugeridas (278 descartadas / 6 aplicadas em 24h).
+>
+> Se você chegou aqui procurando o comportamento atual, vá para o item -7.
 
 ## 5. Gate G10 — implementado em 2026-06-18 (Classifier V2)
 
@@ -310,11 +368,24 @@ A whitelist `automation.v42.allowed_tags` em `app_settings` **não é consultada
 
 **Limitação remanescente**: outras edge functions automáticas (`pipeline-deterministic`, `pipeline-fase4`, `pipeline-move`) que escrevem em `custom_fields` ainda **não** usam a RPC — seus writes são marcados como "humanos" pelo trigger. Isso na prática faz o classifier respeitar regras determinísticas (efeito desejável), mas se elas mesmas precisarem se sobrescrever, vão se autobloquear pela janela de 7d. Acompanhar e migrar para a RPC se observado.
 
-## 5b. Strict no-move — cards podem acumular em Qualificação até Fase 2
+## 5b. "Strict no-move" (OBSOLETO — descrevia o inverso do comportamento atual)
 
-A partir de 2026-06-18 (Classifier V2), **nenhum** stage_suggestion é executado automaticamente, exceto o caminho B2B com guards rígidos (`confidence ≥ 0.95` + `tags_suggested` inclui `b2b` + lead nunca tratado). Cards que deveriam ir para "Consulta agendada" / "Tratamento agendado" / etc. ficam estacionados na coluna atual.
+> ❌ **Esta entrada afirmava que "nenhum stage_suggestion é executado automaticamente,
+> exceto B2B". Isso é falso desde o V6.** Mantida por rastreabilidade porque circulou
+> bastante e ainda aparece citada em outros docs.
 
-**Mitigação**: Fase 2 (webhook SumUp + `appointment-extractor`) vai mover esses cards com base em sinal determinístico, não em LLM. Até lá, a secretária move manualmente.
+O classifier hoje tem **três** caminhos de movimentação em `apply.ts`:
+
+| Caminho | Guards | Toggle (G3) |
+|---|---|---|
+| `b2b` | `is_b2b` + `conf ≥ 0.95` + tag `b2b` + sem histórico de tratamento | `automation.b2b_move.enabled` |
+| `nurture` | sugestão "Nutrição inativa" + intent `objecao`/`desistencia` + saindo de Novo/Qualificação + `conf ≥ 0.8` + sem tratamento | `automation.nurture_move.enabled` |
+| `general` | `conf ≥ 0.8` + destino fora de `HUMAN_SCHEDULING_STAGES` | ⚠️ **nenhum** — `ruleKey` omitido de propósito |
+
+O `general` move qualquer canônico que o Maestro sugerir, sem toggle próprio. Os estágios de
+agendamento/fechamento ("Consulta agendada", "Tratamento agendado", "Consulta finalizada",
+"1ª Sessão Finalizada") são protegidos por `HUMAN_SCHEDULING_STAGES` — esses sim continuam
+exclusivos do humano e da regra determinística, que é de onde vinha a ideia de "strict no-move".
 
 
 ## 6. `auto:novo-lead`, `auto:secretary-replied`, `auto:appointment-sync` com 0 eventos em 30d

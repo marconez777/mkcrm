@@ -25,12 +25,24 @@ Total processado: **14 colunas, 441 leads, 3.973 mensagens, 306 áudios**.
 2. **Dump** em `/tmp/estudo-or/data/` (stages, leads, messages).
 3. **Transcrição de áudio**: **306/306 transcritos** via Gemini multimodal e salvos em `estudo-cache/audio/<msg_id>.txt`.
 
-## 🟡 Pendente — me peça "continuar o estudo"
+## ✅ Concluído (correção 2026-08-07)
 
-4. Síntese por lead (~ leads com ≥3 mensagens) — JSON estruturado, cache em `lead/<id>.json`.
-5. Síntese por coluna (14) — cache em `column/<stage_id>.json`.
-6. Renderizar `docs/estudo/*.md` + `docs/estudo-geral.md`.
-7. Rodar `node scripts/docs-sync.mjs`.
+> Os passos 4-6 estavam listados como pendentes, mas **já haviam sido executados** — os 14
+> arquivos de coluna e o `estudo-geral.md` existem e estão preenchidos. O STATUS ficou
+> desatualizado.
+
+4. ✅ Síntese por lead — JSON estruturado, cache em `lead/<id>.json`.
+5. ✅ Síntese por coluna (14) — cache em `column/<stage_id>.json`.
+6. ✅ `docs/estudo/*.md` + `docs/estudo-geral.md` renderizados.
+7. ⚠️ `node scripts/docs-sync.mjs` — **o script não existe no repositório**, embora
+   `package.json` ainda declare `docs:sync` e `docs:check` apontando para ele. Os dois
+   comandos falham. O verificador em uso hoje é `npm run docs:verify`
+   (`scripts/docs-verify.mjs`).
+
+## 🗄️ Nota de escopo
+
+Este estudo cobre o pipeline **"Agendamentos Novo" (14 colunas)**, extinto em 2026-06-17.
+Ver o banner em [`README.md`](./README.md).
 
 ## Arquivos do pipeline
 

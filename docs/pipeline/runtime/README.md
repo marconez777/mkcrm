@@ -40,9 +40,43 @@ related_docs:
   - docs/pipeline/README.md
 ---
 
-# Pipeline Clínica ÓR — runtime (2026-06-18)
+# Pipeline Clínica ÓR — runtime
 
 > **Esta pasta é o espelho do código deployado**, não do roadmap. Quando o `docs/pipeline/` (raiz) descreve algo da v4.2 que ainda não foi implementado, é este `runtime/` que prevalece para auditoria.
+
+## 🧭 Comece por aqui
+
+A pasta está organizada em três camadas. **Sempre entre pela camada certa** — ler a prosa
+primeiro é o caminho lento e a origem das divergências históricas.
+
+| Camada | O que é | Quando usar |
+|---|---|---|
+| **[`_registry/`](./_registry/)** | Fonte única de fatos, formato tabular, verificada por script | Você precisa saber **o que existe**: stages, gatilhos, campos, tags, toggles, eventos |
+| **[`playbooks/`](./playbooks/)** | Checklists de execução | Você vai **mudar** algo: criar stage, regra, campo, prompt — ou auditar um lead |
+| Arquivos soltos (`ARCHITECTURE`, `GATES`, `CLASSIFIER`, …) | Prosa explicando o **porquê** | Você precisa entender o desenho, não consultar um valor |
+
+**Regra que sustenta isso:** prosa nunca repete um fato do registry — só linka. Se dois
+arquivos discordarem, **o registry vence**. Ver [`CONVENTIONS.md`](./CONVENTIONS.md).
+
+### Atalhos por pergunta
+
+| Pergunta | Vá para |
+|---|---|
+| Que colunas existem e qual o canônico de cada? | [`_registry/stages.md`](./_registry/stages.md) |
+| O que move um card, e sob que gate? | [`_registry/triggers.md`](./_registry/triggers.md) |
+| Que toggle liga esta regra? Está seedado? | [`_registry/toggles.md`](./_registry/toggles.md) |
+| Como este custom field é preenchido e salvo? | [`_registry/fields.md`](./_registry/fields.md) |
+| Quem aplica e quem remove esta tag? | [`_registry/tags.md`](./_registry/tags.md) |
+| Que evento consultar, e com qual caminho de payload? | [`_registry/events.md`](./_registry/events.md) |
+| **Por que este lead não moveu?** | [`playbooks/audit-lead.md`](./playbooks/audit-lead.md) |
+| Vou criar/renomear uma coluna | [`playbooks/add-stage.md`](./playbooks/add-stage.md) |
+| Vou criar uma regra `auto:*` | [`playbooks/add-trigger.md`](./playbooks/add-trigger.md) |
+| Vou criar um custom field | [`playbooks/add-custom-field.md`](./playbooks/add-custom-field.md) |
+| Vou alterar o prompt de um agente | [`playbooks/change-prompt.md`](./playbooks/change-prompt.md) |
+
+```bash
+npm run docs:verify   # falha se código e registry divergirem
+```
 
 ## Identificadores
 

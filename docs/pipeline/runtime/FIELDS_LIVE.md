@@ -73,7 +73,7 @@ Para as chaves `consulta_agendada_em` e `procedimento_agendado_em`:
 - Rejeita `t < anchor - 2h` → `reason: 'in_past'`
 - Rejeita `t > anchor + 90d` → `reason: 'too_far_future'`
 - `anchor` = última mensagem lida (não `now()`)
-- Rejeições registradas em `lead_events.payload.applied.custom_fields_rejected[]`
+- Rejeições registradas em `lead_events.payload.applied.custom_fields.rejected[]`
 
 ### Outros enums
 

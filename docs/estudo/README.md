@@ -9,6 +9,32 @@ summary: Índice do estudo profundo de conversas do funil Agendamentos Novo da C
 
 # Estudo de Conversas — Clínica ÓR
 
+> ## 🗄️ DOCUMENTO HISTÓRICO — não use como referência de funil
+>
+> Este estudo foi feito em **2026-06-16** sobre o pipeline **"Agendamentos Novo" (14 colunas)**.
+> **No dia seguinte esse pipeline deixou de existir.** A migration `20260617210036` criou o
+> pipeline **"Clínica ÓR (novo)"** e a `20260617212408` migrou os leads, colapsando as 14
+> colunas nas 11 atuais.
+>
+> **O conteúdo comportamental continua válido** — como pacientes falam, que objeções levantam,
+> que perguntas fazem, transcrições de áudio. Foi para isso que o estudo foi feito e é para
+> isso que ele serve.
+>
+> **O mapa de funil não é mais válido.** Seis destes arquivos descrevem colunas que não
+> existem no Kanban:
+>
+> | Coluna estudada | Colapsou em | Arquivo |
+> |---|---|---|
+> | Fechamento pendente consulta | Qualificação | `06-…` |
+> | Fechamento pendente procedimento | Qualificação | `09-…` |
+> | Retorno Tratamento Finalizado | Paciente antigo | `12-…` |
+> | Antigo Consulta/procedimento agendado | Consulta agendada | `13-…` |
+> | Lead não qualificado | Desqualificado / Fora de escopo | `08-…` |
+> | Procedimento pago | *(coluna deletada)* | `11-…` |
+>
+> Para o estado atual do funil: [`_registry/stages.md`](../pipeline/runtime/_registry/stages.md).
+> Para os gatilhos: [`_registry/triggers.md`](../pipeline/runtime/_registry/triggers.md).
+
 Análise profunda das conversas do pipeline **Agendamentos Novo** para alimentar:
 - 🤖 O **agente de pipeline** (extractor / B-rules / automações)
 - 💬 O futuro **agente de atendimento** (scripts, tom, perguntas-chave)
