@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, ChevronDown, ExternalLink, X } from "lucide-react";
+import { CalendarIcon, Check, ChevronDown, ExternalLink, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRegion } from "@/hooks/useRegion";
@@ -133,6 +133,156 @@ function ResizableTextareaField({
   );
 }
 
+/**
+ * Campo de data / data-e-hora com commit explícito no botão OK.
+ *
+ * O comportamento anterior gravava duas vezes: no clique do dia (à meia-noite)
+ * e de novo no `onBlur` do campo de hora. Dois defeitos sérios vinham daí:
+ *
+ *  1. LEMBRETES NA HORA ERRADA. O `automations-tick` roda a cada 5 minutos e lê
+ *     `custom_fields[...]` direto. Se um tick caísse entre o clique no dia e a
+ *     digitação da hora, ele via a consulta marcada para meia-noite e calculava
+ *     o lembrete a partir daí. Pior: `shouldSkipForAppointment` libera reenvio
+ *     quando o timestamp muda, então corrigir a hora fazia o paciente receber
+ *     o lembrete errado E depois o certo.
+ *
+ *  2. "ÀS VEZES SALVA, ÀS VEZES NÃO". A hora só era gravada no `onBlur`. Fechar
+ *     o popover clicando fora desmonta o input e o blur não dispara — a hora se
+ *     perdia. Fechar com Tab/Enter salvava. Daí a intermitência.
+ *
+ * Agora o popover trabalha num rascunho local e só o OK grava, uma única vez,
+ * com data e hora juntas. Para `datetime` a hora é obrigatória: gravar
+ * meia-noite por omissão é exatamente o que disparava lembrete fora de hora.
+ */
+function DateTimeField({
+  field,
+  value,
+  onChange,
+}: {
+  field: CustomFieldDef;
+  value: any;
+  onChange: (v: any) => void;
+}) {
+  const parsed = value ? new Date(value) : undefined;
+  const d = parsed && !isNaN(parsed.getTime()) ? parsed : undefined;
+  const isDateTime = field.field_type === "datetime";
+
+  const [open, setOpen] = useState(false);
+  const [draftDate, setDraftDate] = useState<Date | undefined>(d);
+  const [draftTime, setDraftTime] = useState<string>(d ? format(d, "HH:mm") : "");
+
+  // Enquanto fechado, o rascunho espelha o valor salvo. Isso também descarta um
+  // rascunho abandonado (usuário escolheu a data e fechou sem confirmar).
+  useEffect(() => {
+    if (open) return;
+    const p = value ? new Date(value) : undefined;
+    const cur = p && !isNaN(p.getTime()) ? p : undefined;
+    setDraftDate(cur);
+    setDraftTime(cur ? format(cur, "HH:mm") : "");
+  }, [value, open]);
+
+  const timeValid = /^\d{2}:\d{2}$/.test(draftTime);
+  const canConfirm = !!draftDate && (!isDateTime || timeValid);
+
+  const confirm = () => {
+    if (!draftDate) return;
+    const nd = new Date(draftDate);
+    if (isDateTime) {
+      const [h, m] = draftTime.split(":").map(Number);
+      if (!Number.isFinite(h) || !Number.isFinite(m)) return;
+      nd.setHours(h, m, 0, 0);
+    } else {
+      nd.setHours(0, 0, 0, 0);
+    }
+    const iso = nd.toISOString();
+    setOpen(false);
+    if (iso !== value) onChange(iso);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-left text-sm text-foreground hover:text-primary"
+        >
+          <CalendarIcon className="h-3.5 w-3.5" />
+          {d && (
+            <span className="underline decoration-primary/40 underline-offset-2">
+              {format(d, isDateTime ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy")}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={draftDate}
+          onSelect={setDraftDate}
+          initialFocus
+          className={cn("p-3 pointer-events-auto")}
+        />
+
+        <div className="space-y-2 border-t p-2">
+          {isDateTime && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Hora</span>
+              <input
+                type="time"
+                value={draftTime}
+                onChange={(e) => setDraftTime(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && canConfirm) confirm(); }}
+                className="flex-1 rounded border bg-background px-2 py-1 text-xs"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={!canConfirm}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-3 py-1 text-xs font-medium",
+                canConfirm
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "cursor-not-allowed bg-muted text-muted-foreground"
+              )}
+              title={
+                !draftDate
+                  ? "Selecione uma data"
+                  : isDateTime && !timeValid
+                  ? "Preencha a hora"
+                  : "Salvar data e hora"
+              }
+            >
+              <Check className="h-3 w-3" /> OK
+            </button>
+
+            {d && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onChange(null); }}
+                className="ml-auto inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                title="Limpar data"
+              >
+                <X className="h-3 w-3" /> Limpar
+              </button>
+            )}
+          </div>
+
+          {isDateTime && draftDate && !timeValid && (
+            <p className="text-[10px] leading-tight text-muted-foreground">
+              Preencha a hora antes de confirmar — salvar sem hora agenda para meia-noite
+              e dispara lembrete na hora errada.
+            </p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 const nakedInput =
   "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-foreground/70 focus:outline-none";
 
@@ -171,7 +321,13 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
           type="number"
           value={local}
           onChange={(e) => setLocal(e.target.value)}
-          onBlur={() => onChange(local === "" ? null : Number(local))}
+          onBlur={() => {
+            if (local === "") return onChange(null);
+            const n = Number(local);
+            // NaN serializaria como null no JSONB — reverte em vez de gravar lixo.
+            if (Number.isFinite(n)) onChange(n);
+            else setLocal(value ?? "");
+          }}
           className={cn(nakedInput, local !== "" && "underline decoration-primary/40 underline-offset-2")}
           placeholder="0"
         />
@@ -193,6 +349,9 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
               const normalized = raw.replace(/\s/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
               const n = Number(normalized);
               if (Number.isFinite(n)) onChange(n);
+              // Entrada inválida: reverte para o valor salvo em vez de deixar o
+              // texto na tela dando impressão de que gravou.
+              else setLocal(value ?? "");
             }}
             className={cn(nakedInput, local !== "" && "underline decoration-primary/40 underline-offset-2")}
             placeholder="0"
@@ -209,79 +368,9 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
       );
 
     case "date":
-    case "datetime": {
-      const parsed = value ? new Date(value) : undefined;
-      const d = parsed && !isNaN(parsed.getTime()) ? parsed : undefined;
-      // localTime mantém digitação fluida no <input type="time">. Commit no
-      // onBlur evita uma cascata de saves a cada keystroke (que estava
-      // gerando race conditions com o realtime e ressuscitando valores).
-      const [localTime, setLocalTime] = useState<string>(d ? format(d, "HH:mm") : "");
-      useEffect(() => { setLocalTime(d ? format(d, "HH:mm") : ""); }, [value]);
-      const commitTime = (raw: string) => {
-        if (!d) return;
-        const [h, m] = raw.split(":").map(Number);
-        if (!Number.isFinite(h) || !Number.isFinite(m)) return;
-        const nd = new Date(d);
-        nd.setHours(h, m, 0, 0);
-        const iso = nd.toISOString();
-        if (iso !== value) onChange(iso);
-      };
-      return (
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "flex items-center gap-1.5 text-left text-sm text-foreground hover:text-primary"
-              )}
-            >
-              <CalendarIcon className="h-3.5 w-3.5" />
-              {d && (
-                <span className="underline decoration-primary/40 underline-offset-2">
-                  {format(d, field.field_type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy")}
-                </span>
-              )}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={d}
-              onSelect={(date) => onChange(date ? date.toISOString() : null)}
-              initialFocus
-              className={cn("p-3 pointer-events-auto")}
-            />
-            {d && (
-              <div className="flex items-center gap-2 border-t p-2">
-                {field.field_type === "datetime" && (
-                  <input
-                    type="time"
-                    value={localTime}
-                    onChange={(e) => setLocalTime(e.target.value)}
-                    onBlur={(e) => commitTime(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        commitTime((e.target as HTMLInputElement).value);
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    className="flex-1 rounded border bg-background px-2 py-1 text-xs"
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() => onChange(null)}
-                  className="ml-auto inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-                  title="Limpar data"
-                >
-                  <X className="h-3 w-3" /> Limpar
-                </button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
-      );
-    }
+    case "datetime":
+      return <DateTimeField field={field} value={value} onChange={onChange} />;
+
 
     case "select":
       return (
