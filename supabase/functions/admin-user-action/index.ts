@@ -45,7 +45,14 @@ Deno.serve(async (req) => {
           return new Response(JSON.stringify({ error: "Senha deve ter no mínimo 8 caracteres" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
         const { error } = await admin.auth.admin.updateUserById(userId, { password });
-        if (error) throw error;
+        if (error) {
+          const weak = /weak|pwned|known to be/i.test(error.message ?? "");
+          return new Response(JSON.stringify({
+            error: weak
+              ? "Senha muito fraca ou vazada em bases públicas. Use uma senha mais longa e única."
+              : (error.message ?? "Falha ao alterar a senha"),
+          }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
         break;
       }
       case "unlock": {
