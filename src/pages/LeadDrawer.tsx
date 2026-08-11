@@ -29,7 +29,7 @@ export default function LeadDrawer({ lead, onClose, onLeadUpdate }: { lead: Lead
   const [syncing, setSyncing] = useState(false);
   const [reviewing, setReviewing] = useState(false);
 
-  const isAdmin = isSuperAdmin || membership?.role === "owner" || membership?.role === "admin" || membership?.role === "developer";
+  const isAdmin = isSuperAdmin || membership?.role === "owner" || membership?.role === "admin";
 
   if (!lead) return null;
 
