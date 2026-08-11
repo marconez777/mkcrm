@@ -337,8 +337,8 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
         const isItemFields = item.category === "crm" && (item.title.includes("Campos personalizados") || item.title.includes("Robô atualizou"));
         
         if (isLastFields && isItemFields && last.actorName === item.actorName && timeDiff < 5 * 60 * 1000) {
-          const lastChanges = last.meta?.changes || {};
-          const itemChanges = item.meta?.changes || {};
+          const lastChanges: Record<string, any> = (last.meta?.changes as any) || {};
+          const itemChanges: Record<string, any> = (item.meta?.changes as any) || {};
           const mergedChanges: Record<string, any> = { ...itemChanges, ...lastChanges };
           
           for (const key of Object.keys(itemChanges)) {
