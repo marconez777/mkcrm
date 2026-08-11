@@ -85,7 +85,9 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
       if (error) throw error;
       toast.success(okMsg);
       await load();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) {
+      toast.error(await fnErrorMessage(e, "Falha na operação"));
+    }
   }
 
   const filtered = useMemo(() => {
