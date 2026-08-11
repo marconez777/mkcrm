@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { fnErrorMessage } from "@/lib/fn-error";
 import {
   Loader2, MoreHorizontal, Search, Shield, ShieldOff, KeyRound, Unlock, LogOut, Trash2, Download,
   Users, UserCheck, UserX, Crown,
@@ -85,7 +86,9 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
       if (error) throw error;
       toast.success(okMsg);
       await load();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) {
+      toast.error(await fnErrorMessage(e, "Falha na operação"));
+    }
   }
 
   const filtered = useMemo(() => {
