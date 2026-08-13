@@ -265,6 +265,57 @@ antigo*.
 
 ---
 
+### ✅ 12-13/08/2026 — Etapa 5 (regras do fluxo novo)
+
+**Código** — `pipeline-deterministic` caiu de 1190 para 825 linhas.
+
+| Mudança | Efeito |
+|---|---|
+| `ruleInactivityTick` reescrita (220 → 95 linhas) | Faz uma coisa só: **24h sem mensagem do paciente em Qualificação → Sem Resposta**. O resto virou automação de coluna |
+| `faltou` e `cancelado` | Iam para *Sem resposta* e *Qualificação*, ambas no funil de Vendas — rebaixavam paciente a lead. Agora vão para **Reagendamento** |
+| Reativação por funil | Paciente que reaparece em Finalizada ou Paciente Inativo → **Reagendamento**. Em Nutrição Inativa → Qualificação |
+| Data apagada → Reagendamento | Vale **só** em Consulta/Tratamento Agendado. Sem isso haveria laço: entrar em Finalizada limpa a data e o card saltaria de volta |
+| `run_once` em `automations` | Uma vez por lead, para sempre. Conta só `success`, teto de **3 tentativas** |
+| Telemetria | `pipeline_tick_stats` lia `inactivity.pa40` e a função devolvia `pa60` — gravava zero desde sempre |
+
+**Removidos:** `ruleConsultaPassou`, `ruleMonthlySweep`, os gatilhos
+`ciclo_concluido` e `eh_paciente_antigo` *(cliente confirmou que a secretária não
+usa)*, o degrau de 3 dias e a regra de 60d *Paciente antigo → Nutrição Antigos*.
+
+**Migrações aplicadas:** `20260813020000` (canônico de Reagendamento + travessias
+de borda) e `20260813030000` (`run_once`).
+
+> 🔍 O `npm run docs:verify` — criado na `main` em paralelo — **detectou a coluna
+> Reagendamento faltando no registry**. Primeira vez na reforma que uma ferramenta
+> encontrou drift antes de nós. O registry de stages foi atualizado para os dois
+> funis; das 3 divergências originais restou 1, a do cron que morre na Etapa 7.
+
+### Estado operacional em 13/08
+
+**Todas as automações e sequências estão desligadas** — decisão do cliente durante
+a cirurgia. *Sem Resposta* foi esvaziada (29 leads → Nutrição Inativa, hoje com
+963) para que as duas regras de follow-up possam ser ligadas juntas, sem disparar
+em massa para o backlog.
+
+Ordem de religamento acordada:
+
+| Onda | O quê | Motivo |
+|---|---|---|
+| 1ª | 4 lembretes de consulta | Custo real parado: paciente sem aviso |
+| 2ª | 2 pesquisas de satisfação | Só enviam link, não movem card |
+| 3ª | Follow-up #1 e #2 | Sem backlog, podem ir juntas |
+| 4ª | 3 regras de prazo | Movem card — depois de um dia observando |
+| 5ª | 3 sequências | Cadência longa, por último |
+
+**Pendências conhecidas:**
+
+- A cadência de *Paciente Inativo* tem **1 passo** e a de *Nutrição Antigos*, **0**
+- *ÓR — Nutrição Antigos* está vinculada à coluna morta — apagar ou repontar
+- Pesquisa de procedimento disparava da coluna de **consulta**; corrigida por `UPDATE`
+- Lembretes 24h/1h **não existem** para tratamento, só para consulta
+
+---
+
 ### 🔴 12/08/2026 — Achado que teria quebrado a travessia em produção
 
 `trg_leads_enforce_coherence` chama
