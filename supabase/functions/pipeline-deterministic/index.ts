@@ -326,15 +326,22 @@ async function ruleReactivationInbound(
   // Etapa 5 — o paciente que volta a falar tem destino diferente conforme onde
   // está. No funil de Vendas ele volta a ser trabalhado como lead; no de
   // Pacientes vai para a fila de Reagendamento, sem ser rebaixado a lead.
-  const [inativaId, finalConsultaId, finalTratamentoId, pacInativoId] = await Promise.all([
-    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa"),
-    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Consulta finalizada"),
-    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "1ª Sessão Finalizada"),
-    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Paciente antigo"),
-  ]);
+  const [inativaId, semRespostaId, finalConsultaId, finalTratamentoId, pacInativoId] =
+    await Promise.all([
+      resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa"),
+      resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Sem resposta"),
+      resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Consulta finalizada"),
+      resolveStageId(client, lead.clinic_id, lead.pipeline_id, "1ª Sessão Finalizada"),
+      resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Paciente antigo"),
+    ]);
 
   let targetCanon: Canon | null = null;
-  if (lead.stage_id === inativaId) {
+  if (lead.stage_id === inativaId || lead.stage_id === semRespostaId) {
+    // "Sem resposta" foi acrescentada em 13/08: até então esse caminho existia
+    // APENAS no trigger SQL `fn_clinica_or_wakeup_inbound`, com os UUIDs das
+    // colunas cravados. Com a regra cobrindo os dois casos, o trigger vira
+    // redundante e pode ser removido — junto com 5 UUIDs hardcoded e o defeito
+    // D9 (o wake-up aparecia como `system` no histórico).
     targetCanon = "Qualificação";
   } else if (
     lead.stage_id === pacInativoId ||

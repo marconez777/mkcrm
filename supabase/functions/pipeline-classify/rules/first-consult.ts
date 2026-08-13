@@ -3,7 +3,11 @@
 // Evidências contrárias: idade >90d, passou por stages tratados, tag paciente_antigo,
 // ou ai_summary cita atendimento anterior.
 
-const TREATED_STAGES = new Set(["Em tratamento", "Consulta finalizada", "Paciente antigo"]);
+// Havia aqui um segundo TREATED_STAGES, comparado contra o NOME real da coluna e
+// já divergente do de schema.ts (faltava "1ª Sessão Finalizada"). Removido em
+// 13/08/2026: `input.hasBeenTreatedBefore` cobre o mesmo conceito e resolve por
+// alias canônico em context.ts, imune a rename — foi comparação por nome que fez
+// a IA rebaixar 5 pacientes em tratamento quando a coluna virou "Tratamento Ativo".
 const SUMMARY_HINTS_AGAINST_FIRST = [
   /já\s+realizou/i,
   /paciente\s+antig/i,
@@ -17,8 +21,8 @@ const SUMMARY_HINTS_AGAINST_FIRST = [
 export type FirstConsultInput = {
   createdAt: string | null;
   tags: string[];
+  /** Resolvido por alias canônico em context.ts — única fonte sobre "já tratado". */
   hasBeenTreatedBefore: boolean;
-  recentStageHistory: Array<{ from: string | null; to: string | null }>;
   aiSummary: string | null;
   nowMs?: number;
 };
@@ -35,11 +39,6 @@ export function evaluateFirstConsult(input: FirstConsultInput): FirstConsultDeci
   const olderThan90d =
     Number.isFinite(ageMs) && ageMs > 90 * 86_400_000;
 
-  const stageHit = input.recentStageHistory.some(
-    (h) =>
-      (h.to && TREATED_STAGES.has(h.to)) ||
-      (h.from && TREATED_STAGES.has(h.from)),
-  );
   const tagHit = input.tags.includes("paciente_antigo");
   const summaryHit = !!(
     input.aiSummary &&
@@ -47,14 +46,12 @@ export function evaluateFirstConsult(input: FirstConsultInput): FirstConsultDeci
   );
 
   const blocked =
-    olderThan90d || stageHit || tagHit || summaryHit || input.hasBeenTreatedBefore;
+    olderThan90d || tagHit || summaryHit || input.hasBeenTreatedBefore;
 
   const tagPresent = input.tags.includes("1ª consulta");
   const reason = blocked
     ? olderThan90d
       ? "lead_older_than_90d"
-      : stageHit
-      ? "passed_through_treated_stage"
       : tagHit
       ? "has_tag_paciente_antigo"
       : summaryHit

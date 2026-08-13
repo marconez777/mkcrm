@@ -26,27 +26,17 @@ const RULES: RuleRow[] = [
   // Fase 1.2
   { key: "automation.appointment_agendado.enabled", label: "auto:appointment-agendado", phase: "Fase 1.2", description: "Appointment criado → move para 'Consulta agendada' ou 'Tratamento agendado' (guard D3)." },
   { key: "automation.appointment_realizado.enabled",label: "auto:appointment-realizado",phase: "Fase 1.2", description: "Consulta realizada → 'Consulta finalizada' + dispara pesquisa." },
-  { key: "automation.appointment_faltou.enabled",   label: "auto:appointment-faltou",   phase: "Fase 1.2", description: "Faltou → 'Sem resposta' + tag no_show + task." },
-  { key: "automation.appointment_cancelado.enabled",label: "auto:appointment-cancelado",phase: "Fase 1.2", description: "Cancelado → 'Qualificação' + tag reagendamento_pendente." },
-  { key: "automation.procedure_realizado.enabled",  label: "auto:procedure-realizado",  phase: "Fase 1.2", description: "1ª sessão de tratamento → 'Em tratamento'. Sessões seguintes só incrementam contador." },
+  { key: "automation.appointment_faltou.enabled",   label: "auto:appointment-faltou",   phase: "Fase 1.2", description: "Faltou → 'Reagendamento' (funil de Pacientes) + tag reagendamento_pendente." },
+  { key: "automation.appointment_cancelado.enabled",label: "auto:appointment-cancelado",phase: "Fase 1.2", description: "Cancelado → 'Reagendamento' (funil de Pacientes) + tag reagendamento_pendente." },
   // Fase 1.3
-  { key: "automation.followup_24h.enabled",         label: "auto:followup-24h",         phase: "Fase 1.3", description: "Sem resposta 24h → template #1. Não move." },
-  { key: "automation.followup_3d.enabled",          label: "auto:followup-3d",          phase: "Fase 1.3", description: "Sem resposta 3d → template #2. Não move." },
-  { key: "automation.followup_7d_nutricao.enabled", label: "auto:followup-7d-nutricao", phase: "Fase 1.3", description: "Sem resposta 7d → move 'Sem resposta' ou 'Nutrição inativa'." },
+  { key: "automation.followup_24h.enabled",         label: "auto:followup-24h",         phase: "Fase 1.3", description: "24h sem mensagem DO PACIENTE em Qualificação → MOVE para 'Sem resposta'. O envio dos follow-ups #1 e #2 é feito por automações de coluna." },
   // Fase 1.4 / 1.5 / 1.6
-  { key: "automation.reactivation.enabled",         label: "auto:reactivation",         phase: "Fase 1.4", description: "Lead inativo voltou a falar → 'Qualificação' (ou destino conforme tags)." },
-  { key: "automation.modality_guard.enabled",       label: "auto:modality-guard",       phase: "Fase 1.5", description: "Bloqueia template com {{endereco}} se modalidade=online." },
-  { key: "automation.ciclo_concluido.enabled",      label: "auto:ciclo-concluido",      phase: "Fase 1.6", description: "Humano marca ciclo_concluido → 'Em tratamento' → 'Paciente antigo'." },
+  { key: "automation.reactivation.enabled",         label: "auto:reactivation",         phase: "Fase 1.4", description: "Paciente voltou a falar. De Nutrição Inativa ou Sem Resposta → 'Qualificação'. De Finalizada ou Paciente Inativo → 'Reagendamento'." },
   // Fase 1.7
   { key: "automation.human_reactor.enabled",        label: "pipeline-human-reactor",    phase: "Fase 1.7", description: "Reator D7: humano mexe no card → IA infere consequência ou tagueia precisa_atencao_humana." },
   // Fase 2
   { key: "automation.classifier.enabled",           label: "pipeline-classify",         phase: "Fase 2",   description: "Classifier LLM (Gemini Flash). Saída estruturada com confidence." },
   { key: "automation.classifier.history_tool_enabled", label: "A3 get_lead_history",    phase: "Fase 2",   description: "Tool do classifier que puxa mensagens antigas sob demanda (v4.2)." },
-  { key: "automation.b2b_move.enabled",             label: "auto:b2b-move",             phase: "Fase 2",   description: "Classifier detectou B2B com confidence ≥ 0.85 → 'B2B/Stakeholders'." },
-  { key: "automation.urgency_flag.enabled",         label: "auto:urgency-flag",         phase: "Fase 2",   description: "Urgência alta/crítica → tag urgencia_clinica + notif. Não move." },
-  { key: "automation.field_patch.enabled",          label: "auto:field-patch",          phase: "Fase 2",   description: "Aplica custom_fields_patch respeitando G10 (humano>IA em 7d)." },
-  { key: "automation.tags_merge.enabled",           label: "auto:tags-merge",           phase: "Fase 2",   description: "MERGE de tags filtrado por whitelist v4.2." },
-  { key: "automation.agendamento_sugerido.enabled", label: "auto:agendamento-sugerido", phase: "Fase 2",   description: "Intent=agendar → cria task + tag agendamento_sugerido. NUNCA cria appointment (G11)." },
   // Fase 2.5 (v4.2)
   { key: "automation.position_auditor.enabled",     label: "A1 position-auditor",       phase: "Fase 2.5", description: "Cron diário revisa leads parados ≥7d. Discordância → tag, não move." },
   { key: "automation.post_move_verifier.enabled",   label: "A2 post-move-verifier",     phase: "Fase 2.5", description: "Segunda opinião pós-move auto:*. Warning sem reverter." },

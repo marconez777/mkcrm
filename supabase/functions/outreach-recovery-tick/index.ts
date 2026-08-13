@@ -65,7 +65,10 @@ const COHORTS: Cohort[] = [
     key: "b23",
     systemKey: "audit:b23_hot_leads_buried",
     tag: `${TAG_PREFIX}b23`,
-    stageNames: ["Paciente antigo", "Nutrição de Leads Inativos"],
+    // 13/08/2026: nomes atualizados após a separação em dois funis. "Nutrição de
+    // Leads Inativos" nunca existiu — a coluna sempre se chamou "Nutrição Inativa
+    // (Geladeira de Leads)", então esta auditoria estava meia-cega desde o início.
+    stageNames: ["Paciente Inativo", "Nutrição Inativa (Geladeira de Leads)"],
     matchFn: (l) => {
       const interesse = String((l.custom_fields ?? {})["procedimento_interesse"] ?? "").toLowerCase();
       return (interesse === "cetamina" || interesse === "emt") && !l.has_inbound;

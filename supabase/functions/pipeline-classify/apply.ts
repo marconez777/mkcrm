@@ -105,7 +105,6 @@ export async function applyClassification(
     createdAt: lead.created_at,
     tags: lead.tags,
     hasBeenTreatedBefore: ctx.hasBeenTreatedBefore,
-    recentStageHistory: ctx.recentStageHistory,
     aiSummary: lead.ai_summary,
     nowMs: ctx.nowMs,
   });
