@@ -14,6 +14,102 @@ export type Database = {
   }
   public: {
     Tables: {
+      _bkp_20260813_aliases: {
+        Row: {
+          canonical_name: string | null
+          clinic_id: string | null
+          created_at: string | null
+          id: string | null
+          pipeline_id: string | null
+          snapshot_at: string | null
+          stage_id: string | null
+        }
+        Insert: {
+          canonical_name?: string | null
+          clinic_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          pipeline_id?: string | null
+          snapshot_at?: string | null
+          stage_id?: string | null
+        }
+        Update: {
+          canonical_name?: string | null
+          clinic_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          pipeline_id?: string | null
+          snapshot_at?: string | null
+          stage_id?: string | null
+        }
+        Relationships: []
+      }
+      _bkp_20260813_leads_stage: {
+        Row: {
+          clinic_id: string | null
+          id: string | null
+          pipeline_id: string | null
+          snapshot_at: string | null
+          stage_id: string | null
+        }
+        Insert: {
+          clinic_id?: string | null
+          id?: string | null
+          pipeline_id?: string | null
+          snapshot_at?: string | null
+          stage_id?: string | null
+        }
+        Update: {
+          clinic_id?: string | null
+          id?: string | null
+          pipeline_id?: string | null
+          snapshot_at?: string | null
+          stage_id?: string | null
+        }
+        Relationships: []
+      }
+      _bkp_20260813_stages: {
+        Row: {
+          auto_tag_on_enter: string[] | null
+          clinic_id: string | null
+          color: string | null
+          created_at: string | null
+          id: string | null
+          is_terminal: boolean | null
+          lock_auto_move: boolean | null
+          name: string | null
+          pipeline_id: string | null
+          position: number | null
+          snapshot_at: string | null
+        }
+        Insert: {
+          auto_tag_on_enter?: string[] | null
+          clinic_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_terminal?: boolean | null
+          lock_auto_move?: boolean | null
+          name?: string | null
+          pipeline_id?: string | null
+          position?: number | null
+          snapshot_at?: string | null
+        }
+        Update: {
+          auto_tag_on_enter?: string[] | null
+          clinic_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_terminal?: boolean | null
+          lock_auto_move?: boolean | null
+          name?: string | null
+          pipeline_id?: string | null
+          position?: number | null
+          snapshot_at?: string | null
+        }
+        Relationships: []
+      }
       agent_evals: {
         Row: {
           agent_id: string
@@ -1474,6 +1570,7 @@ export type Database = {
           enabled: boolean
           id: string
           name: string
+          run_once: boolean
           trigger_config: Json
           trigger_type: string
           updated_at: string
@@ -1488,6 +1585,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           name: string
+          run_once?: boolean
           trigger_config?: Json
           trigger_type: string
           updated_at?: string
@@ -1502,6 +1600,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           name?: string
+          run_once?: boolean
           trigger_config?: Json
           trigger_type?: string
           updated_at?: string
@@ -3927,7 +4026,9 @@ export type Database = {
       lead_stage_history: {
         Row: {
           clinic_id: string
+          from_pipeline_id: string | null
           from_stage_id: string | null
+          from_stage_name: string | null
           id: string
           lead_id: string
           metadata: Json
@@ -3936,11 +4037,15 @@ export type Database = {
           moved_by_user_id: string | null
           reason: string | null
           source: string
+          to_pipeline_id: string | null
           to_stage_id: string | null
+          to_stage_name: string | null
         }
         Insert: {
           clinic_id?: string
+          from_pipeline_id?: string | null
           from_stage_id?: string | null
+          from_stage_name?: string | null
           id?: string
           lead_id: string
           metadata?: Json
@@ -3949,11 +4054,15 @@ export type Database = {
           moved_by_user_id?: string | null
           reason?: string | null
           source?: string
+          to_pipeline_id?: string | null
           to_stage_id?: string | null
+          to_stage_name?: string | null
         }
         Update: {
           clinic_id?: string
+          from_pipeline_id?: string | null
           from_stage_id?: string | null
+          from_stage_name?: string | null
           id?: string
           lead_id?: string
           metadata?: Json
@@ -3962,7 +4071,9 @@ export type Database = {
           moved_by_user_id?: string | null
           reason?: string | null
           source?: string
+          to_pipeline_id?: string | null
           to_stage_id?: string | null
+          to_stage_name?: string | null
         }
         Relationships: [
           {
@@ -4770,6 +4881,67 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: true
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_crossings: {
+        Row: {
+          allow_auto: boolean
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          from_stage_id: string
+          id: string
+          note: string | null
+          to_stage_id: string
+          trigger_key: string
+          updated_at: string
+        }
+        Insert: {
+          allow_auto?: boolean
+          clinic_id: string
+          created_at?: string
+          enabled?: boolean
+          from_stage_id: string
+          id?: string
+          note?: string | null
+          to_stage_id: string
+          trigger_key?: string
+          updated_at?: string
+        }
+        Update: {
+          allow_auto?: boolean
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          from_stage_id?: string
+          id?: string
+          note?: string | null
+          to_stage_id?: string
+          trigger_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_crossings_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_crossings_from_stage_id_fkey"
+            columns: ["from_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_crossings_to_stage_id_fkey"
+            columns: ["to_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
             referencedColumns: ["id"]
           },
         ]
