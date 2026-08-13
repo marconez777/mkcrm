@@ -73,7 +73,12 @@ const PACIENTE_ANTIGO_NAME = "Paciente antigo";
  *  G4 — `lead_events` já tem a `idempotencyKey` → abort idempotente.
  *  G2 — `pipeline_stages.lock_auto_move` no destino é true e source começa com `auto:` → abort.
  *  D3 — current_stage = "Paciente antigo" e source começa com `auto:` → abort (guard D3).
- *  G8 — UPDATE só toca em `stage_id` e `stage_changed_at` (nunca em `pipeline_id`).
+ *  G8 — UPDATE toca em `stage_id`; `pipeline_id` SÓ em travessia entre funis,
+ *       porque `trg_leads_enforce_coherence` roda antes do sync e exigiria os
+ *       dois coerentes no mesmo statement. `stage_changed_at` é gravado pelo
+ *       trigger BEFORE `leads_stage_changed` e lido de volta como instante
+ *       canônico do movimento (base da deduplicação do histórico).
+ *  G9 — travessia entre pipelines exige linha declarada em `pipeline_crossings`.
  *  G5 — INSERT em `lead_stage_history` com `source` preenchido.
  *
  * PR4 — gate G1 (manual_lock_until) removido. A feature foi descontinuada.
@@ -162,7 +167,7 @@ export async function pipelineMove(
   // Carrega stages (origem + destino).
   const { data: stages, error: stagesErr } = await client
     .from("pipeline_stages")
-    .select("id, name, lock_auto_move")
+    .select("id, name, lock_auto_move, pipeline_id")
     .in("id", [lead.stage_id, toStageId].filter(Boolean) as string[]);
   if (stagesErr) {
     return { moved: false, reason: `stages_lookup_error:${stagesErr.message}` };
@@ -171,6 +176,45 @@ export async function pipelineMove(
   const toStage = stages?.find((s) => s.id === toStageId) ?? null;
   if (!toStage) {
     return { moved: false, reason: `to_stage_not_found:${toStageId}` };
+  }
+
+  // G9 — TRAVESSIA ENTRE PIPELINES.
+  // Mudar de funil não pode ser efeito colateral do trigger que deriva
+  // `pipeline_id`. Automação só atravessa se houver linha declarada e habilitada
+  // em `pipeline_crossings`. Humano e scripts administrativos passam direto.
+  // Ver docs/tenants/clinica-or/FLUXO_ALVO.md §4.
+  const isCrossing =
+    !!fromStage?.pipeline_id &&
+    !!toStage.pipeline_id &&
+    fromStage.pipeline_id !== toStage.pipeline_id;
+
+  if (isCrossing) {
+    const isHumanOrAdmin =
+      source === "manual" || source === "ui" || source.startsWith("system:");
+
+    if (!isHumanOrAdmin) {
+      const { data: crossings, error: crossErr } = await client
+        .from("pipeline_crossings")
+        .select("trigger_key, allow_auto")
+        .eq("clinic_id", lead.clinic_id)
+        .eq("from_stage_id", lead.stage_id)
+        .eq("to_stage_id", toStageId)
+        .eq("enabled", true);
+      if (crossErr) {
+        return { moved: false, reason: `gate_g9_lookup_error:${crossErr.message}` };
+      }
+
+      // A regra pode declarar `trigger_key` específico ou '*' (qualquer origem).
+      const match = (crossings ?? []).find(
+        (c) => c.trigger_key === "*" || c.trigger_key === source,
+      );
+      if (!match) {
+        return { moved: false, reason: `gate_g9_crossing_not_declared:${source}` };
+      }
+      if (!match.allow_auto) {
+        return { moved: false, reason: "gate_g9_crossing_human_only" };
+      }
+    }
   }
 
   // G2 — destino com lock_auto_move.
@@ -231,37 +275,74 @@ export async function pipelineMove(
     }
   }
 
-  // G8 — UPDATE limitado a stage_id + stage_changed_at.
-  const { error: updErr } = await client
+  // G8 — UPDATE limitado a stage_id (+ pipeline_id APENAS em travessia).
+  //
+  // `stage_changed_at` é sobrescrito pelo trigger BEFORE `leads_stage_changed`
+  // com o `now()` da transação — por isso lemos de volta o valor real: ele é o
+  // INSTANTE CANÔNICO do movimento e a chave da deduplicação (ver abaixo).
+  //
+  // ⚠️ TRAVESSIA EXIGE ESCREVER `pipeline_id` NO MESMO UPDATE.
+  // Triggers BEFORE disparam em ordem alfabética, então
+  // `trg_leads_enforce_coherence` roda ANTES de `trg_leads_sync_pipeline`. Ao
+  // mover para uma coluna de outro funil mandando só `stage_id`, a validação vê
+  // `NEW.stage_id` no funil novo e `NEW.pipeline_id` ainda no antigo e levanta
+  // `stage_id % belongs to pipeline %, not lead.pipeline_id %` — a sincronização
+  // que corrigiria isso nunca chega a rodar. Mandando os dois juntos, a validação
+  // passa e o sync apenas reescreve o mesmo valor.
+  const updatePayload: Record<string, unknown> = { stage_id: toStageId };
+  if (isCrossing) updatePayload.pipeline_id = toStage.pipeline_id;
+
+  const { data: moved, error: updErr } = await client
     .from("leads")
-    .update({
-      stage_id: toStageId,
-      stage_changed_at: new Date().toISOString(),
-    })
-    .eq("id", leadId);
+    .update(updatePayload)
+    .eq("id", leadId)
+    .select("stage_changed_at")
+    .maybeSingle();
   if (updErr) {
     return { moved: false, reason: `update_failed:${updErr.message}` };
   }
+  const movedAt = (moved as { stage_changed_at?: string } | null)?.stage_changed_at
+    ?? new Date().toISOString();
 
   // G5 — history.
+  //
+  // UPSERT, não INSERT. O trigger `record_lead_stage_history` já criou a linha
+  // durante o UPDATE acima, com `moved_at = NEW.stage_changed_at` e source
+  // genérico ('system' ou 'manual'). Como usamos o MESMO `moved_at`, o índice
+  // único colide e nós ENRIQUECEMOS aquela linha com o source real, o motivo e o
+  // metadata — em vez de criar uma segunda.
+  //
+  // Era essa segunda linha que produzia 18% de duplicação no histórico.
+  // `moved_by_user_id` fica de fora do payload de propósito: o valor que o
+  // trigger gravou a partir de `auth.uid()` deve prevalecer.
   const historyMeta = {
     ...(metadata ?? {}),
     ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
     ...(wipedKeys.length > 0 ? { wiped_keys: wipedKeys } : {}),
     rule_key: ruleKey ?? null,
   };
-  const { error: histErr } = await client.from("lead_stage_history").insert({
-    clinic_id: lead.clinic_id,
-    lead_id: leadId,
-    from_stage_id: lead.stage_id,
-    to_stage_id: toStageId,
-    source,
-    reason: reason ?? null,
-    metadata: historyMeta,
-  });
+  const { error: histErr } = await client
+    .from("lead_stage_history")
+    .upsert(
+      {
+        clinic_id: lead.clinic_id,
+        lead_id: leadId,
+        from_stage_id: lead.stage_id,
+        to_stage_id: toStageId,
+        from_pipeline_id: fromStage?.pipeline_id ?? null,
+        to_pipeline_id: toStage.pipeline_id ?? null,
+        from_stage_name: fromStage?.name ?? null,
+        to_stage_name: toStage.name,
+        moved_at: movedAt,
+        source,
+        reason: reason ?? null,
+        metadata: historyMeta,
+      },
+      { onConflict: "lead_id,to_stage_id,moved_at" },
+    );
   if (histErr) {
     // Não revertemos o move (a UI já reflete o novo stage); logamos como warning.
-    console.warn("[pipeline-move] history insert failed", histErr);
+    console.warn("[pipeline-move] history upsert failed", histErr);
   }
 
   // G4 — marca idempotência.

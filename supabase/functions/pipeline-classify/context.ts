@@ -231,6 +231,28 @@ export async function loadLeadContext(
       .in("id", Array.from(stageIds));
     for (const s of rows ?? []) nameMap.set(s.id as string, s.name as string);
   }
+  // Canônicos por stage_id. Comparar TREATED_STAGES contra o nome real da coluna
+  // quebra a cada rename na UI (ex.: "1ª Sessão Finalizada" → "Tratamento Ativo").
+  // Os aliases sobrevivem ao rename, então a checagem passa a ser feita por eles.
+  const canonMap = new Map<string, Set<string>>();
+  if (stageIds.size > 0) {
+    const { data: aliasRows } = await client
+      .from("stage_canonical_aliases")
+      .select("stage_id, canonical_name")
+      .in("stage_id", Array.from(stageIds));
+    for (const a of aliasRows ?? []) {
+      const id = a.stage_id as string;
+      if (!canonMap.has(id)) canonMap.set(id, new Set());
+      canonMap.get(id)!.add(a.canonical_name as string);
+    }
+  }
+  const isTreatedStageId = (id: string | null) => {
+    if (!id) return false;
+    for (const c of canonMap.get(id) ?? []) if (TREATED_STAGES.has(c)) return true;
+    const n = nameMap.get(id); // fallback p/ colunas sem alias
+    return !!n && TREATED_STAGES.has(n);
+  };
+
   const recentStageHistory = (stageHistRaw ?? []).map((h: { moved_at: string; from_stage_id: string | null; to_stage_id: string | null }) => ({
     at: h.moved_at,
     from: h.from_stage_id ? nameMap.get(h.from_stage_id) ?? null : null,
@@ -238,8 +260,9 @@ export async function loadLeadContext(
   }));
   const tags = ((leadRow.tags ?? []) as string[]).map(String);
   const hasBeenTreatedBefore =
-    recentStageHistory.some(
-      (h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from)),
+    (stageHistRaw ?? []).some(
+      (h: { from_stage_id: string | null; to_stage_id: string | null }) =>
+        isTreatedStageId(h.to_stage_id) || isTreatedStageId(h.from_stage_id),
     ) || tags.includes("paciente_antigo");
 
   const clinicFieldSchema: ClinicFieldDef[] = (clinicFieldsRaw ?? [])
