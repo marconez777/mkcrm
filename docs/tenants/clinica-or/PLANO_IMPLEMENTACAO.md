@@ -235,6 +235,36 @@ Migração `20260812234500_historico_higiene`:
 
 ---
 
+### ✅ 12/08/2026 — Etapa 4 (topologia) — CONCLUÍDA
+
+Deploy do código verificado em produção **antes** de rodar: às 21:45 uma
+movimentação `auto:followup-7d` ainda gerava duas linhas (`system` + origem real,
+separadas por 79 ms); às 23:45 o `auto:inactivity-tick` gerou **uma linha só, com
+a origem real**. Assinatura do upsert funcionando.
+
+Bloco B executado. **Nenhum lead perdido: 1914 antes, 1914 depois.**
+
+| Clínica ÓR — Vendas | leads | Clínica ÓR — Pacientes | leads |
+|---|---|---|---|
+| Leads de entrada | 0 | Consulta agendada | 9 |
+| Qualificação | 23 | Tratamento agendado | 6 |
+| Sem resposta | 29 | Consulta finalizada | 3 |
+| Nutrição Inativa | 932 | Tratamento Finalizado | 6 |
+| Desqualificado | 16 | **Reagendamento** | 0 |
+| Administrativo | 278 | **Paciente Inativo** | 612 |
+| Nutrição Antigos (migrada) | 0 | | |
+| **subtotal** | **1278** | **subtotal** | **636** |
+
+Conferência: `leads_incoerentes = 0` · `travessias = 16` · 418 linhas de histórico
+geradas pela fusão dos 417 leads de *Nutrição Antigos* com os 195 de *Paciente
+antigo*.
+
+> ⚠️ *Nutrição Antigos (migrada)* continua visível no funil de Vendas, vazia, na
+> posição 9. Foi mantida de propósito — apagar geraria 528 linhas de histórico
+> órfãs. Decidir depois da estabilização.
+
+---
+
 ### 🔴 12/08/2026 — Achado que teria quebrado a travessia em produção
 
 `trg_leads_enforce_coherence` chama
