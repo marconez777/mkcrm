@@ -18,6 +18,32 @@
 
 BEGIN;
 
+-- ── PRÉ-CHECAGEM — aborta antes de tocar em qualquer coisa ───────────────
+DO $pre$
+DECLARE
+  v_p2  uuid;
+  v_bad int;
+BEGIN
+  -- O nome do funil tem TRAVESSÃO LONGO (—). Se a colagem trocar o caractere, a
+  -- busca devolve NULL e o passo 1 apagaria o vínculo de 5 colunas. Falha aqui.
+  SELECT id INTO v_p2 FROM public.pipelines
+   WHERE clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1'
+     AND name = 'Clínica ÓR — Pacientes';
+  IF v_p2 IS NULL THEN
+    RAISE EXCEPTION
+      'ABORTADO: pipeline "Clínica ÓR — Pacientes" não encontrado. Confira o travessão longo no nome.';
+  END IF;
+
+  -- Cadência ligada + migração dos 415 = mensagem em massa para pacientes.
+  SELECT count(*) INTO v_bad FROM public.stage_sequence_bindings
+   WHERE clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1' AND enabled;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION
+      'ABORTADO: % vínculo(s) de sequência habilitado(s). Desligue antes — a migração inscreveria centenas de pacientes de uma vez.', v_bad;
+  END IF;
+END
+$pre$;
+
 -- ── 0) BACKUP — permite reconstruir a alocação anterior ──────────────────
 CREATE TABLE IF NOT EXISTS public._bkp_20260813_leads_stage AS
 SELECT id, clinic_id, stage_id, pipeline_id, now() AS snapshot_at
@@ -149,5 +175,49 @@ UPDATE public.pipeline_stages SET position = v.pos FROM (VALUES
 UPDATE public.pipelines
    SET name = 'Clínica ÓR — Vendas'
  WHERE id = '17c27f4d-8256-4ea7-b5b9-ed706494f686';
+
+-- ── PÓS-CHECAGEM — desfaz tudo se algo saiu errado ───────────────────────
+-- Roda ainda DENTRO da transação: qualquer exceção aqui reverte os 9 passos.
+DO $pos$
+DECLARE
+  v_incoerentes int;
+  v_sobrou      int;
+  v_inativo     int;
+  v_travessias  int;
+BEGIN
+  -- Nenhum lead pode ficar com funil e coluna desalinhados: o próximo UPDATE
+  -- nele levantaria exceção de coerência.
+  SELECT count(*) INTO v_incoerentes
+    FROM public.leads l JOIN public.pipeline_stages s ON s.id = l.stage_id
+   WHERE l.clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1'
+     AND l.pipeline_id <> s.pipeline_id;
+  IF v_incoerentes > 0 THEN
+    RAISE EXCEPTION 'ABORTADO: % lead(s) com funil e coluna desalinhados', v_incoerentes;
+  END IF;
+
+  -- A coluna antiga tem de ficar vazia.
+  SELECT count(*) INTO v_sobrou FROM public.leads
+   WHERE clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1'
+     AND stage_id = '9de8e54e-7edb-47dd-b613-de22276d8ea1';
+  IF v_sobrou > 0 THEN
+    RAISE EXCEPTION 'ABORTADO: % lead(s) ainda em Nutrição Antigos', v_sobrou;
+  END IF;
+
+  -- Paciente Inativo deve ter recebido todo mundo (195 + 415 = 610 em 12/08).
+  SELECT count(*) INTO v_inativo FROM public.leads
+   WHERE clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1'
+     AND stage_id = '7fea97d7-c2af-4e6f-8f39-af8375bb4468'
+     AND archived_at IS NULL;
+
+  SELECT count(*) INTO v_travessias FROM public.pipeline_crossings
+   WHERE clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1';
+  IF v_travessias = 0 THEN
+    RAISE EXCEPTION 'ABORTADO: nenhuma travessia declarada — a conversão pararia';
+  END IF;
+
+  RAISE NOTICE 'OK — Paciente Inativo: % leads | travessias declaradas: %',
+    v_inativo, v_travessias;
+END
+$pos$;
 
 COMMIT;
