@@ -57,7 +57,8 @@ type Canon =
   | "Sem resposta"
   | "Nutrição inativa"
   | "Nutrição Antigos"
-  | "Paciente antigo";
+  | "Paciente antigo"
+  | "Reagendamento";
 
 /**
  * Resolve a stage id within the lead's pipeline using stage_canonical_aliases.
@@ -285,11 +286,19 @@ async function ruleSecretaryReplied(
 
 /**
  * auto:reactivation-inbound
- * Quando um lead em "Nutrição inativa" ou "Nutrição Antigos" recebe uma
- * mensagem inbound (from_me=false), o card deve sair da geladeira:
- *   - Nutrição inativa  → Qualificação
- *   - Nutrição Antigos  → Paciente antigo
- * Respeita gates (manual_lock, etc.) via pipelineMove.
+ *
+ * O paciente/lead voltou a falar. O destino depende de onde ele está:
+ *
+ *   VENDAS     Nutrição Inativa      → Qualificação
+ *   PACIENTES  Paciente Inativo      → Reagendamento
+ *              Consulta Finalizada   → Reagendamento
+ *              Tratamento Finalizado → Reagendamento
+ *
+ * A ideia central do desenho de dois funis: quem já é paciente nunca é
+ * rebaixado a lead ao reaparecer — vai para a fila de trabalho de Pacientes.
+ * Nas demais colunas, nada acontece.
+ *
+ * Respeita todos os gates via pipelineMove, inclusive o G9 de travessia.
  */
 async function ruleReactivationInbound(
   client: SupabaseClient,
@@ -314,16 +323,37 @@ async function ruleReactivationInbound(
   if (lead.archived_at) return { skipped: "archived" };
   if (lead.is_internal_contact) return { skipped: "internal_contact" };
 
-  const inativaId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa");
-  const antigosId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição Antigos");
+  // Etapa 5 — o paciente que volta a falar tem destino diferente conforme onde
+  // está. No funil de Vendas ele volta a ser trabalhado como lead; no de
+  // Pacientes vai para a fila de Reagendamento, sem ser rebaixado a lead.
+  const [inativaId, finalConsultaId, finalTratamentoId, pacInativoId] = await Promise.all([
+    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa"),
+    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Consulta finalizada"),
+    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "1ª Sessão Finalizada"),
+    resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Paciente antigo"),
+  ]);
 
   let targetCanon: Canon | null = null;
-  if (lead.stage_id === inativaId) targetCanon = "Qualificação";
-  else if (lead.stage_id === antigosId) targetCanon = "Paciente antigo";
-  else return { skipped: "not_in_nutricao" };
+  if (lead.stage_id === inativaId) {
+    targetCanon = "Qualificação";
+  } else if (
+    lead.stage_id === pacInativoId ||
+    lead.stage_id === finalConsultaId ||
+    lead.stage_id === finalTratamentoId
+  ) {
+    targetCanon = "Reagendamento";
+  } else {
+    return { skipped: "coluna_sem_reativacao" };
+  }
 
-  const toStageId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, targetCanon);
+  const toStageId = await resolveDestination(
+    client,
+    lead,
+    targetCanon,
+    "auto:reactivation-inbound",
+  );
   if (!toStageId) return { skipped: `stage_not_found:${targetCanon}` };
+  if (lead.stage_id === toStageId) return { skipped: "already_at_destination" };
 
   const res = await pipelineMove(client, {
     leadId: lead.id,
@@ -391,11 +421,14 @@ async function ruleAppointmentSync(
       patch["sessoes_realizadas"] = prev + 1;
     }
   } else if (appt.status === "faltou") {
-    targetCanon = "Sem resposta";
+    // Antes ia para "Sem resposta", que ficou no funil de Vendas. Quem falta
+    // continua sendo paciente: fica em Pacientes, na fila de Reagendamento.
+    targetCanon = "Reagendamento";
     extraTag = "reagendamento_pendente";
     patch["status_consulta"] = "faltou";
   } else if (appt.status === "cancelado") {
-    targetCanon = "Qualificação";
+    // Antes voltava para "Qualificação" — rebaixava paciente a lead.
+    targetCanon = "Reagendamento";
     extraTag = "reagendamento_pendente";
     patch["status_consulta"] = "cancelada";
   }
@@ -467,76 +500,16 @@ async function ruleFieldChanged(
 ) {
   const out: Record<string, unknown> = {};
 
-  // ciclo-concluido
-  if (
-    oldCf?.ciclo_concluido !== true &&
-    newCf?.ciclo_concluido === true &&
-    (await isEnabled(client, "automation.ciclo_concluido.enabled"))
-  ) {
-    const { data: lead } = await client
-      .from("leads")
-      .select("id, clinic_id, pipeline_id, stage_id")
-      .eq("id", leadId)
-      .single();
-    if (lead?.pipeline_id) {
-      const pacAntigo = await resolveStageId(
-        client,
-        lead.clinic_id,
-        lead.pipeline_id,
-        "Paciente antigo",
-      );
-      if (pacAntigo && lead.stage_id !== pacAntigo) {
-        const res = await pipelineMove(client, {
-          leadId,
-          toStageId: pacAntigo,
-          source: "auto:ciclo-concluido",
-          reason: "ciclo_concluido=true",
-          ruleKey: "automation.ciclo_concluido.enabled",
-          idempotencyKey: `ciclo:${leadId}`,
-        });
-        // PR4 — removido manual_lock_until de 90 dias após ciclo concluído.
-        await logEvent(client, lead.clinic_id, leadId, "auto:ciclo-concluido", {
-          res,
-        });
-        out.ciclo = res;
-      }
-    }
-  }
-
-  // PR4 — modality-guard removido (campo modalidade_preferida descontinuado).
-
-  // PR4 — eh_paciente_antigo: regra canônica para mover paciente antigo.
-  if (
-    oldCf?.eh_paciente_antigo !== true &&
-    newCf?.eh_paciente_antigo === true &&
-    (await isEnabled(client, "automation.paciente_antigo_canonical.enabled"))
-  ) {
-    const { data: lead } = await client
-      .from("leads")
-      .select("id, clinic_id, pipeline_id, stage_id")
-      .eq("id", leadId)
-      .single();
-    if (lead?.pipeline_id) {
-      const pacAntigo = await resolveStageId(
-        client,
-        lead.clinic_id,
-        lead.pipeline_id,
-        "Paciente antigo",
-      );
-      if (pacAntigo && lead.stage_id !== pacAntigo) {
-        const res = await pipelineMove(client, {
-          leadId,
-          toStageId: pacAntigo,
-          source: "auto:paciente-antigo-canonical",
-          reason: "eh_paciente_antigo=true",
-          ruleKey: "automation.paciente_antigo_canonical.enabled",
-          idempotencyKey: `paciente-antigo:${leadId}`,
-        });
-        await logEvent(client, lead.clinic_id, leadId, "auto:paciente-antigo-canonical", { res });
-        out.paciente_antigo = res;
-      }
-    }
-  }
+  // ── Aposentados na Etapa 5 (12/08/2026) ────────────────────────────────
+  // `ciclo_concluido` e `eh_paciente_antigo` moviam o card para "Paciente
+  // antigo". No desenho de dois funis quem leva para Paciente Inativo é o
+  // tempo: 60 dias parado em Consulta/Tratamento Finalizado. Confirmado com o
+  // cliente que a secretária não usa esses campos.
+  // Os toggles automation.ciclo_concluido.enabled e
+  // automation.paciente_antigo_canonical.enabled ficam órfãos — remover da tela
+  // de automações. Ver PLANO_IMPLEMENTACAO §3 Etapa 5, item 22.
+  //
+  // PR4 — modality-guard já havia sido removido (campo descontinuado).
 
   // === Transição Agendamento Humano (Junho/2026) ===
   // Secretária preencheu data no Kanban → mover deterministicamente.
@@ -576,231 +549,154 @@ async function ruleFieldChanged(
     }
   }
 
+  // ── Data APAGADA → Reagendamento ────────────────────────────────────────
+  // Falta ou cancelamento: a secretária limpa a data e o card sai da fila de
+  // agendados para a fila de trabalho do funil de Pacientes.
+  //
+  // ⚠️ Vale SÓ quando o card está em Consulta Agendada ou Tratamento Agendado.
+  // Sem essa restrição haveria um laço: entrar em "Consulta Finalizada" limpa a
+  // data automaticamente (wipe do pipelineMove), o que dispararia este gatilho e
+  // o card saltaria de Finalizada direto para Reagendamento — nunca ficando em
+  // Finalizada, e a pesquisa de satisfação nunca disparando.
+  if (apptSyncEnabled) {
+    const limpou = ["consulta_agendada_em", "procedimento_agendado_em"].some((f) => {
+      const before = oldCf?.[f];
+      const after = newCf?.[f];
+      return !!before && before !== "" && (!after || after === "");
+    });
+
+    if (limpou) {
+      const { data: lead } = await client
+        .from("leads")
+        .select("id, clinic_id, pipeline_id, stage_id")
+        .eq("id", leadId)
+        .single();
+
+      if (lead?.pipeline_id && lead.stage_id) {
+        const agendadas = await Promise.all([
+          resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Consulta agendada"),
+          resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Tratamento agendado"),
+        ]);
+
+        if (agendadas.includes(lead.stage_id)) {
+          const src = "auto:field-cleared-reagendamento";
+          const destino = await resolveDestination(client, lead, "Reagendamento", src);
+          if (destino && destino !== lead.stage_id) {
+            const res = await pipelineMove(client, {
+              leadId,
+              toStageId: destino,
+              source: src,
+              reason: "Data de agendamento apagada pela secretária → Reagendamento",
+              ruleKey: "automation.appointment_sync.enabled",
+              // Granularidade de hora evita re-disparo em edições seguidas.
+              idempotencyKey: `field-cleared:${leadId}:${new Date().toISOString().slice(0, 13)}`,
+            });
+            await logEvent(client, lead.clinic_id, leadId, src, { res });
+            out["field-cleared-reagendamento"] = res;
+          }
+        }
+      }
+    }
+  }
+
   return out;
 }
 
 async function ruleInactivityTick(client: SupabaseClient) {
-  const t24 = await isEnabled(client, "automation.followup_24h.enabled");
-  const t3d = await isEnabled(client, "automation.followup_3d.enabled");
-  const t7d = await isEnabled(client, "automation.followup_7d_nutricao.enabled");
-  if (!t24 && !t3d && !t7d) return { skipped: "all_toggles_off" };
+  // ── Escada de follow-up, degrau 1 — 24h de silêncio do PACIENTE ──────────
+  //
+  // Reescrita em 12/08/2026 (Etapa 5). O resto do que existia aqui virou
+  // automação de coluna, porque `stage_idle` conta tempo em `stage_changed_at`
+  // e não é afetado quando a clínica envia mensagem:
+  //
+  //   FU#1 ao entrar em Sem Resposta       -> automations, stage_idle hours=0
+  //   FU#2 +48h                             -> automations, stage_idle hours=48
+  //   Sem Resposta 7d  -> Nutrição Inativa  -> automations, stage_idle hours=168
+  //   Reagendamento 7d -> Paciente Inativo  -> automations, stage_idle hours=168
+  //   Finalizada 60d   -> Paciente Inativo  -> automations, stage_idle hours=1440
+  //
+  // Só este degrau precisa de código: o relógio é o silêncio do PACIENTE
+  // (`last_inbound_at`), e o lead pode estar conversando há dias na mesma
+  // coluna — tempo em coluna não diria nada.
+  //
+  // Também saíram daqui:
+  //   • o degrau de 3 dias (o desenho usa 48h, e ele vive em Sem Resposta);
+  //   • a regra de 60d Paciente antigo -> Nutrição Antigos: com a fusão do
+  //     Bloco B, Paciente Inativo é o fim da linha — quem tira o paciente de
+  //     lá é ele mesmo voltando a falar;
+  //   • Consulta e Tratamento agendado saíram do contador (decisão D5: card
+  //     com data marcada nunca esfria).
+  //
+  // Ver docs/tenants/clinica-or/FLUXO_ALVO.md §2.2 e §6b.
+  if (!(await isEnabled(client, "automation.followup_24h.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
 
-  const now = Date.now();
-  const cutoff24 = new Date(now - 24 * 3600 * 1000).toISOString();
-  const cutoff3d = new Date(now - 3 * 24 * 3600 * 1000).toISOString();
-  const cutoff7d = new Date(now - 7 * 24 * 3600 * 1000).toISOString();
+  const cutoff24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
-  // Active stages: Novo, Qualificação, Consulta agendada, Tratamento agendado
-  const ACTIVE: Canon[] = [
-    "Novo",
-    "Qualificação",
-    "Consulta agendada",
-    "Tratamento agendado",
-  ];
-
-  // Fetch candidate leads: not archived, has stage in active set (resolved per-clinic)
+  // Origem e destino por apelido canônico — imunes a rename de coluna.
   const { data: aliases } = await client
     .from("stage_canonical_aliases")
     .select("clinic_id, pipeline_id, canonical_name, stage_id")
-    .in("canonical_name", [...ACTIVE, "Nutrição inativa", "Nutrição Antigos", "Paciente antigo"]);
+    .in("canonical_name", ["Qualificação", "Sem resposta"]);
 
-  const stageIdsActive = new Set(
-    (aliases ?? [])
-      .filter((a) => ACTIVE.includes(a.canonical_name as Canon))
-      .map((a) => a.stage_id),
+  const qualifIds = new Set(
+    (aliases ?? []).filter((a) => a.canonical_name === "Qualificação").map((a) => a.stage_id),
   );
-  const nutricaoByPipeline = new Map<string, string>();
-  const nutricaoAntigosByPipeline = new Map<string, string>();
+  const semRespostaByPipeline = new Map<string, string>();
   for (const a of aliases ?? []) {
-    if (a.canonical_name === "Nutrição inativa") {
-      nutricaoByPipeline.set(a.pipeline_id, a.stage_id);
-    } else if (a.canonical_name === "Nutrição Antigos") {
-      nutricaoAntigosByPipeline.set(a.pipeline_id, a.stage_id);
-    }
+    if (a.canonical_name === "Sem resposta") semRespostaByPipeline.set(a.pipeline_id, a.stage_id);
   }
-  if (stageIdsActive.size === 0) return { skipped: "no_active_stages_mapped" };
+  if (qualifIds.size === 0) return { skipped: "no_qualificacao_mapped" };
 
   const { data: leads } = await client
     .from("leads")
-    .select(
-      "id, clinic_id, pipeline_id, stage_id, last_message_at, last_inbound_at, last_human_activity_at, tags",
-    )
-    .in("stage_id", Array.from(stageIdsActive))
+    .select("id, clinic_id, pipeline_id, stage_id, last_inbound_at, last_message_at")
+    .in("stage_id", Array.from(qualifIds))
     .is("archived_at", null)
     .eq("is_internal_contact", false)
     .limit(2000);
 
-  let tier24 = 0, tier3 = 0, tier7 = 0;
+  let movidos = 0;
+  const naoMovidos: Record<string, number> = {};
+
   for (const lead of leads ?? []) {
-    // PR5: relógio de inatividade usa last_inbound_at (somente mensagens do
-    // paciente). Follow-ups da clínica não resetam mais o timer. Fallback p/
-    // last_message_at quando o lead ainda não tem inbound registrado.
+    // Sem inbound registrado, cai para a última mensagem da conversa.
     const lastInbound = lead.last_inbound_at ?? lead.last_message_at ?? "1970-01-01";
-    const lastHuman = lead.last_human_activity_at ?? "1970-01-01";
+    if (lastInbound >= cutoff24) continue;
 
-    if (t7d && lastInbound < cutoff7d) {
-      const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
-      if (nutricaoId && lead.stage_id !== nutricaoId) {
-        const today = new Date().toISOString().slice(0, 10);
-        const res = await pipelineMove(client, {
-          leadId: lead.id,
-          toStageId: nutricaoId,
-          source: "auto:followup-7d",
-          reason: "7d sem inbound — move para Nutrição inativa",
-          ruleKey: "automation.followup_7d_nutricao.enabled",
-          idempotencyKey: `inactivity:${lead.id}:7d:${today}`,
-        });
-        if ((res as { moved?: boolean }).moved) {
-          await addTag(client, lead.id, "precisa_atencao_humana");
-          tier7++;
-          await logEvent(client, lead.clinic_id, lead.id, "auto:followup-7d", {
-            res,
-          });
-        }
-      }
-    } else if (t3d && lastInbound < cutoff3d) {
-      const today = new Date().toISOString().slice(0, 10);
-      // tag + event only (no move); idempotency via event lookup
-      const { data: existing } = await client
-        .from("lead_events")
-        .select("id")
-        .eq("lead_id", lead.id)
-        .eq("type", "auto:followup-3d")
-        .gte("created_at", `${today}T00:00:00Z`)
-        .maybeSingle();
-      if (!existing) {
-        await logEvent(client, lead.clinic_id, lead.id, "auto:followup-3d", {
-          last_inbound_at: lead.last_inbound_at,
-          last_message_at: lead.last_message_at,
-        });
-        tier3++;
-      }
-    } else if (t24 && lastHuman < cutoff24) {
-      const today = new Date().toISOString().slice(0, 10);
-      const { data: existing } = await client
-        .from("lead_events")
-        .select("id")
-        .eq("lead_id", lead.id)
-        .eq("type", "auto:followup-24h")
-        .gte("created_at", `${today}T00:00:00Z`)
-        .maybeSingle();
-      if (!existing) {
-        await logEvent(client, lead.clinic_id, lead.id, "auto:followup-24h", {
-          last_human_activity_at: lead.last_human_activity_at,
-        });
-        tier24++;
-      }
+    const destino = semRespostaByPipeline.get(lead.pipeline_id);
+    if (!destino) {
+      naoMovidos["sem_coluna_destino"] = (naoMovidos["sem_coluna_destino"] ?? 0) + 1;
+      continue;
+    }
+
+    const dia = new Date().toISOString().slice(0, 10);
+    const res = await pipelineMove(client, {
+      leadId: lead.id,
+      toStageId: destino,
+      source: "auto:followup-24h",
+      reason: "24h sem mensagem do paciente em Qualificação",
+      ruleKey: "automation.followup_24h.enabled",
+      idempotencyKey: `inactivity:${lead.id}:24h:${dia}`,
+    });
+
+    if ((res as { moved?: boolean }).moved) {
+      movidos++;
+      await logEvent(client, lead.clinic_id, lead.id, "auto:followup-24h", {
+        last_inbound_at: lead.last_inbound_at,
+        res,
+      });
+    } else {
+      const r = (res as { reason?: string }).reason ?? "nao_movido";
+      naoMovidos[r] = (naoMovidos[r] ?? 0) + 1;
     }
   }
 
-
-  // V5 — SLA 40d em "Paciente antigo" → "Nutrição Antigos".
-  // Também inclui leads sem nenhuma data de interação (last_inbound_at
-  // e last_message_at ambos NULL), que antes ficavam presos na coluna.
-  // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
-  let tier60pa = 0;
-  const perLead: Array<{ lead_id: string; ms: number; moved: boolean; reason?: string }> = [];
-  let skippedNoDest = 0;
-  let notMoved = 0;
-  let errored = 0;
-  const t60paStart = Date.now();
-  const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
-  let candidates = 0;
-  if (t60pa) {
-    const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
-    const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
-    const paStageIds = new Set(paAliases.map((a) => a.stage_id));
-    if (paStageIds.size > 0) {
-      const { data: paLeads } = await client
-        .from("leads")
-        .select("id, clinic_id, pipeline_id, stage_id, last_inbound_at, last_message_at, custom_fields")
-        .in("stage_id", Array.from(paStageIds))
-        .is("archived_at", null)
-        .eq("is_internal_contact", false)
-        .or(
-          `last_inbound_at.lt.${cutoff60},` +
-          `and(last_inbound_at.is.null,last_message_at.lt.${cutoff60}),` +
-          `and(last_inbound_at.is.null,last_message_at.is.null)`
-        )
-        .limit(50);
-
-      candidates = paLeads?.length ?? 0;
-      console.log(JSON.stringify({ v: "det-v2", phase: "pa60:start", candidates, stages: paStageIds.size }));
-
-      for (const lead of paLeads ?? []) {
-        const leadStart = Date.now();
-        const destId = nutricaoAntigosByPipeline.get(lead.pipeline_id);
-        if (!destId) {
-          skippedNoDest++;
-          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: "no_destination_stage" });
-          continue;
-        }
-
-        const cf = (lead.custom_fields as Record<string, unknown>) ?? {};
-        const futureApptRaw = cf.consulta_agendada_em ?? cf.procedimento_agendado_em;
-        if (futureApptRaw) {
-          const appt = new Date(futureApptRaw as string);
-          if (!isNaN(appt.getTime()) && appt.getTime() > now) {
-            skippedNoDest++;
-            perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: "has_future_appointment" });
-            continue;
-          }
-        }
-
-        const ym = new Date().toISOString().slice(0, 7);
-        try {
-          const res = await pipelineMove(client, {
-            leadId: lead.id,
-            toStageId: destId,
-            source: "auto:inactivity-tick",
-            reason: "60d sem inbound em Paciente antigo — Nutrição Antigos",
-            ruleKey: "automation.inactivity_paciente_antigo.enabled",
-            idempotencyKey: `inactivity:paciente_antigo:antigos:60d:${lead.id}:${ym}`,
-          });
-          const ms = Date.now() - leadStart;
-          const moved = !!(res as { moved?: boolean }).moved;
-          if (moved) {
-            tier60pa++;
-            await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
-          } else {
-            notMoved++;
-          }
-          perLead.push({ lead_id: lead.id, ms, moved, reason: moved ? undefined : (res as { reason?: string })?.reason ?? "not_moved" });
-        } catch (e) {
-          errored++;
-          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: `error:${(e as Error).message?.slice(0, 120)}` });
-        }
-      }
-    }
-  }
-
-  const totalMs = Date.now() - t60paStart;
-  const times = perLead.map((p) => p.ms).sort((a, b) => a - b);
-  const avg = times.length ? Math.round(times.reduce((s, n) => s + n, 0) / times.length) : 0;
-  const p95 = times.length ? times[Math.min(times.length - 1, Math.floor(times.length * 0.95))] : 0;
-  const slow = [...perLead].sort((a, b) => b.ms - a.ms).slice(0, 5);
-  const failureReasons: Record<string, number> = {};
-  for (const p of perLead) if (!p.moved && p.reason) failureReasons[p.reason] = (failureReasons[p.reason] ?? 0) + 1;
-
-  console.log(JSON.stringify({
-    v: "det-v2",
-    phase: "pa60:done",
-    total_ms: totalMs,
-    candidates,
-    moved: tier60pa,
-    not_moved: notMoved,
-    skipped_no_dest: skippedNoDest,
-    errored,
-    avg_ms_per_lead: avg,
-    p95_ms_per_lead: p95,
-    slowest: slow,
-    failure_reasons: failureReasons,
-  }));
-
-  return { tier24, tier3, tier7, tier60pa, scanned: leads?.length ?? 0, pa60: { total_ms: totalMs, candidates, moved: tier60pa, not_moved: notMoved, skipped_no_dest: skippedNoDest, errored, avg_ms_per_lead: avg, p95_ms_per_lead: p95, failure_reasons: failureReasons } };
+  const out = { avaliados: leads?.length ?? 0, movidos, nao_movidos: naoMovidos };
+  console.log(JSON.stringify({ v: "det-v3", phase: "followup24:done", ...out }));
+  return out;
 }
-
-
 async function ruleReactivationTick(client: SupabaseClient) {
   if (!(await isEnabled(client, "automation.reactivation.enabled"))) {
     return { skipped: "toggle_off" };
@@ -873,195 +769,6 @@ async function ruleHumanReactorTick(client: SupabaseClient) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ruleConsultaPassou — PR6
-// Quando a data da consulta/procedimento já passou (+ buffer de 2h) e o lead
-// continua em "Consulta agendada" / "Tratamento agendado" sem reagendamento
-// pendente, presume-se que foi realizada e move-se para o stage final. No-show
-// continua sendo move manual da secretária.
-// ─────────────────────────────────────────────────────────────────────────────
-async function ruleConsultaPassou(client: SupabaseClient) {
-  // === Transição Agendamento Humano (Junho/2026) ===
-  // Desligada: com múltiplos procedimentos paralelos (consulta + cetamina), o
-  // cron automático finalizava cards ativos prematuramente. A secretária move
-  // manualmente para "Consulta finalizada" / "1ª Sessão Finalizada".
-  return { skipped: "disabled_by_human_transition" } as const;
-  // eslint-disable-next-line no-unreachable
-  if (!(await isEnabled(client, "automation.consulta_passou_finaliza.enabled"))) {
-    return { skipped: "toggle_off" };
-  }
-
-  const BUFFER_MS = 2 * 3600 * 1000;
-  const cutoffIso = new Date(Date.now() - BUFFER_MS).toISOString();
-
-  const { data: aliases } = await client
-    .from("stage_canonical_aliases")
-    .select("pipeline_id, stage_id, canonical_name")
-    .in("canonical_name", [
-      "Consulta agendada",
-      "Tratamento agendado",
-      "Consulta finalizada",
-      "1ª Sessão Finalizada",
-    ]);
-
-  type Pair = { fromCanon: "Consulta agendada" | "Tratamento agendado"; toCanon: "Consulta finalizada" | "1ª Sessão Finalizada"; tag: string; source: string };
-  const PAIRS: Pair[] = [
-    { fromCanon: "Consulta agendada", toCanon: "Consulta finalizada", tag: "consulta_realizada", source: "auto:consulta-passou" },
-    { fromCanon: "Tratamento agendado", toCanon: "1ª Sessão Finalizada", tag: "procedimento_realizado", source: "auto:procedimento-passou" },
-  ];
-
-  const REAGENDAMENTO_TAGS = new Set(["reagendamento_pendente", "reagendamento_solicitado", "aguardando_nova_data"]);
-
-  let moved = 0;
-  let scanned = 0;
-  const moves: unknown[] = [];
-
-  for (const pair of PAIRS) {
-    const fromStageIds = (aliases ?? [])
-      .filter((a) => a.canonical_name === pair.fromCanon)
-      .map((a) => a.stage_id);
-    if (fromStageIds.length === 0) continue;
-
-    const toByPipeline = new Map<string, string>();
-    for (const a of aliases ?? []) {
-      if (a.canonical_name === pair.toCanon) toByPipeline.set(a.pipeline_id, a.stage_id);
-    }
-
-    const { data: leads } = await client
-      .from("leads")
-      .select("id, clinic_id, pipeline_id, stage_id, tags, custom_fields")
-      .in("stage_id", fromStageIds)
-      .is("archived_at", null)
-      .eq("is_internal_contact", false)
-      .limit(2000);
-
-    for (const lead of leads ?? []) {
-      scanned++;
-      const cf = (lead.custom_fields ?? {}) as Record<string, unknown>;
-      const rawDate =
-        (cf.procedimento_agendado_em as string | undefined) ??
-        (cf.consulta_agendada_em as string | undefined);
-      if (!rawDate) continue;
-      const ts = Date.parse(rawDate);
-      if (!Number.isFinite(ts)) continue;
-      if (ts >= Date.now() - BUFFER_MS) continue; // ainda futuro / dentro do buffer
-
-      const tags = (lead.tags ?? []) as string[];
-      if (tags.some((t) => REAGENDAMENTO_TAGS.has(t))) continue;
-
-      const toStageId = toByPipeline.get(lead.pipeline_id);
-      if (!toStageId || lead.stage_id === toStageId) continue;
-
-      const ymd = new Date(ts).toISOString().slice(0, 10);
-      const res = await pipelineMove(client, {
-        leadId: lead.id,
-        toStageId,
-        source: pair.source,
-        reason: `${pair.fromCanon} → ${pair.toCanon}: data ${ymd} já passou (+2h buffer); no-show fica manual`,
-        ruleKey: "automation.consulta_passou_finaliza.enabled",
-        idempotencyKey: `consulta-passou:${lead.id}:${ymd}`,
-      });
-      if ((res as { moved?: boolean }).moved) {
-        await addTag(client, lead.id, pair.tag);
-        await logEvent(client, lead.clinic_id, lead.id, pair.source, {
-          from: pair.fromCanon,
-          to: pair.toCanon,
-          data_agendada: rawDate,
-        });
-        moved++;
-        moves.push({ lead_id: lead.id, to: pair.toCanon, data: rawDate });
-      }
-    }
-  }
-
-  return { moved, scanned, sample: moves.slice(0, 10) };
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ruleMonthlySweep — Dia 1 de cada mês: leads em "Consulta finalizada" ou
-// "1ª Sessão Finalizada" cuja stage_changed_at < primeiro dia do mês corrente
-// viram "Paciente antigo" + eh_paciente_antigo=true.
-// Idempotência mensal: monthly-sweep:{lead_id}:{YYYY-MM}
-// Toggle: automation.monthly_sweep_paciente_antigo.enabled (default false)
-// ─────────────────────────────────────────────────────────────────────────────
-async function ruleMonthlySweep(client: SupabaseClient, opts?: { dryRun?: boolean }) {
-  const dryRun = !!opts?.dryRun;
-  if (!dryRun && !(await isEnabled(client, "automation.monthly_sweep_paciente_antigo.enabled"))) {
-    return { skipped: "toggle_off" };
-  }
-
-  const now = new Date();
-  const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-  const ym = now.toISOString().slice(0, 7);
-
-  const { data: aliases } = await client
-    .from("stage_canonical_aliases")
-    .select("pipeline_id, stage_id, canonical_name")
-    .in("canonical_name", ["Consulta finalizada", "1ª Sessão Finalizada", "Paciente antigo"]);
-
-  const FROM_CANON = new Set(["Consulta finalizada", "1ª Sessão Finalizada"]);
-  const fromStageIds = (aliases ?? [])
-    .filter((a) => FROM_CANON.has(a.canonical_name))
-    .map((a) => a.stage_id);
-  const paByPipeline = new Map<string, string>();
-  for (const a of aliases ?? []) {
-    if (a.canonical_name === "Paciente antigo") paByPipeline.set(a.pipeline_id, a.stage_id);
-  }
-
-  if (fromStageIds.length === 0 || paByPipeline.size === 0) {
-    return { skipped: "no_stages_mapped" };
-  }
-
-  const { data: leads } = await client
-    .from("leads")
-    .select("id, clinic_id, pipeline_id, stage_id, stage_changed_at, custom_fields")
-    .in("stage_id", fromStageIds)
-    .lt("stage_changed_at", firstOfMonth)
-    .is("archived_at", null)
-    .eq("is_internal_contact", false)
-    .limit(5000);
-
-  let moved = 0;
-  let scanned = 0;
-  const sample: unknown[] = [];
-
-  for (const lead of leads ?? []) {
-    scanned++;
-    const toStageId = paByPipeline.get(lead.pipeline_id);
-    if (!toStageId || lead.stage_id === toStageId) continue;
-
-    if (dryRun) {
-      if (sample.length < 20) sample.push({ lead_id: lead.id, from: lead.stage_id, to: toStageId });
-      moved++;
-      continue;
-    }
-
-    const res = await pipelineMove(client, {
-      leadId: lead.id,
-      toStageId,
-      source: "auto:monthly-sweep",
-      reason: `Sweep mensal ${ym}: card de mês anterior → Paciente antigo`,
-      ruleKey: "automation.monthly_sweep_paciente_antigo.enabled",
-      idempotencyKey: `monthly-sweep:${lead.id}:${ym}`,
-    });
-
-    if ((res as { moved?: boolean }).moved) {
-      await patchCustomFields(client, lead.id, { eh_paciente_antigo: true });
-      await logEvent(client, lead.clinic_id, lead.id, "auto:monthly-sweep", {
-        ym,
-        from_stage_id: lead.stage_id,
-        to_stage_id: toStageId,
-      });
-      moved++;
-      if (sample.length < 20) sample.push({ lead_id: lead.id, to: toStageId });
-    }
-  }
-
-  return { ym, dryRun, moved, scanned, sample };
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
 // HTTP entry
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1079,19 +786,23 @@ Deno.serve(async (req) => {
     errorMessage?: string;
   }) {
     try {
-      // Extrai métricas da fase pa40 (quando presente).
-      const r = params.result as { inactivity?: { pa40?: Record<string, unknown> } } | undefined;
-      const pa40 = r?.inactivity?.pa40 ?? {};
-      const p = pa40 as {
-        total_ms?: number;
-        candidates?: number;
-        moved?: number;
-        not_moved?: number;
-        skipped_no_dest?: number;
-        errored?: number;
-        avg_ms_per_lead?: number;
-        p95_ms_per_lead?: number;
-        failure_reasons?: Record<string, number>;
+      // Corrigido em 12/08/2026: lia `inactivity.pa40`, mas a função devolvia
+      // `pa60` — as estatísticas gravavam zero desde sempre, justamente a
+      // telemetria que teria denunciado a regra de 60 dias travada.
+      // A fase pa60 morreu na Etapa 5; o que sobra é o degrau de 24h.
+      const r = params.result as {
+        inactivity?: { avaliados?: number; movidos?: number; nao_movidos?: Record<string, number> };
+      } | undefined;
+      const inact = r?.inactivity ?? {};
+      const p = {
+        candidates: inact.avaliados ?? 0,
+        moved: inact.movidos ?? 0,
+        not_moved: Object.values(inact.nao_movidos ?? {}).reduce((s, n) => s + n, 0),
+        failure_reasons: inact.nao_movidos ?? {},
+        skipped_no_dest: (inact.nao_movidos ?? {})["sem_coluna_destino"] ?? 0,
+        errored: 0,
+        avg_ms_per_lead: 0,
+        p95_ms_per_lead: 0,
       };
       await client.from("pipeline_tick_stats").insert({
         action: bodyAction,
@@ -1148,10 +859,10 @@ Deno.serve(async (req) => {
         );
         break;
       case "inactivity-tick":
-        result = {
-          inactivity: await ruleInactivityTick(client),
-          consulta_passou: await ruleConsultaPassou(client),
-        };
+        // `consulta_passou` saiu: a regra estava desligada desde a Transição
+        // Agendamento Humano e virou código inalcançável. Fechar consulta e
+        // tratamento é ação da secretária.
+        result = { inactivity: await ruleInactivityTick(client) };
         break;
       case "reactivation-tick":
         result = await ruleReactivationTick(client);
@@ -1159,11 +870,13 @@ Deno.serve(async (req) => {
       case "human-reactor-tick":
         result = await ruleHumanReactorTick(client);
         break;
-      case "monthly-sweep-tick": {
-        const dryRun = (body as unknown as { dry_run?: boolean }).dry_run === true;
-        result = await ruleMonthlySweep(client, { dryRun });
+      case "monthly-sweep-tick":
+        // Removido na Etapa 5. O sweep do dia 1º movia os finalizados para
+        // Paciente antigo; no desenho de dois funis quem faz isso é a regra de
+        // 60 dias em Pacientes. O cron `pipeline-monthly-sweep-paciente-antigo`
+        // precisa ser desagendado — ver PLANO_IMPLEMENTACAO §3 Etapa 7, item 29.
+        result = { skipped: "monthly_sweep_removido_etapa_5" };
         break;
-      }
       default:
         await persistTickStats({ ok: false, errorMessage: "unknown_action" });
         return new Response(

@@ -15,9 +15,49 @@ type Automation = {
   action_type: string;
   action_config: any;
   cooldown_hours: number;
+  /** Uma vez por lead, para sempre — ignora a janela de cooldown. */
+  run_once?: boolean;
 };
 
-async function recentlyRan(supabase: any, automationId: string, leadId: string, cooldownHours: number) {
+/** Teto de tentativas quando `run_once` está ligado — ver comentário abaixo. */
+const RUN_ONCE_MAX_TENTATIVAS = 3;
+
+async function recentlyRan(
+  supabase: any,
+  automationId: string,
+  leadId: string,
+  cooldownHours: number,
+  runOnce = false,
+) {
+  // ── run_once: uma vez por lead, PARA SEMPRE ──────────────────────────────
+  // Usado pelos follow-ups #1 e #2 e pelas duas pesquisas de satisfação: o
+  // paciente recebe cada um uma única vez na vida, não a cada passagem pela
+  // coluna.
+  //
+  // Conta apenas `success`. O caminho normal conta success E error — foi assim
+  // que se matou o loop infinito de julho (um lead chegou a 813 tentativas).
+  // Mas com "uma vez para sempre", contar erro significaria que uma única falha
+  // de envio bloquearia o lead permanentemente, em silêncio. O teto de
+  // tentativas preserva as duas garantias.
+  if (runOnce) {
+    const { data: sucesso } = await supabase
+      .from("automation_runs")
+      .select("id")
+      .eq("automation_id", automationId)
+      .eq("lead_id", leadId)
+      .eq("status", "success")
+      .limit(1);
+    if ((sucesso?.length ?? 0) > 0) return true;
+
+    const { count } = await supabase
+      .from("automation_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("automation_id", automationId)
+      .eq("lead_id", leadId)
+      .eq("status", "error");
+    return (count ?? 0) >= RUN_ONCE_MAX_TENTATIVAS;
+  }
+
   const since = new Date(Date.now() - cooldownHours * 3600_000).toISOString();
   const { data } = await supabase
     .from("automation_runs")
@@ -439,7 +479,7 @@ Deno.serve(async (req) => {
         const apptISO: string | null = lead.appointment_at ?? null;
         const skip = isAppt && apptISO
           ? await shouldSkipForAppointment(supabase, a.id, lead.id, effectiveCooldownH, apptISO)
-          : await recentlyRan(supabase, a.id, lead.id, effectiveCooldownH);
+          : await recentlyRan(supabase, a.id, lead.id, effectiveCooldownH, !!(a as { run_once?: boolean }).run_once);
         if (skip) {
           skipped++;
           continue;

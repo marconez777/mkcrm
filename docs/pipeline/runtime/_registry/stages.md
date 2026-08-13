@@ -3,8 +3,8 @@ title: "Registry — Stages e canônicos"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-08-07
-verified_at: 2026-08-07
+updated: 2026-08-12
+verified_at: 2026-08-12
 verified_against: b245a2a8
 summary: "Uma linha por stage: nome real no banco, canônico, se o alias existe, e quem move para lá."
 code_refs:
@@ -32,20 +32,36 @@ Um canônico sem alias pode funcionar pela regra determinística e ser inalcanç
 
 ## Stages
 
-| Nome no banco | Canônico | Alias existe? | Quem move para lá | Notas |
+> ⚠️ **Atualizado em 12/08/2026 — o funil virou dois.** A Clínica ÓR passou a ter
+> **Clínica ÓR — Vendas** (`17c27f4d-…`) e **Clínica ÓR — Pacientes**. Movimentação
+> entre eles só acontece com linha declarada em `pipeline_crossings` (gate G9).
+> **A IA não move card em nenhum dos dois** — os três caminhos do classifier foram
+> removidos. Ver `docs/tenants/clinica-or/FLUXO_ALVO.md`.
+
+### Funil de Vendas
+
+| Nome no banco | Canônico | Alias | Quem move para lá | Notas |
 |---|---|---|---|---|
-| Leads de entrada | `Novo` | ❌ **não** | `auto:novo-lead` | Nenhum seed mapeia "Leads de entrada"→`Novo`. Quebra `auto:secretary-replied` (sempre `not_in_novo`). `KNOWN_ISSUES.md` #-11 |
-| Qualificação | `Qualificação` | ✅ | `auto:secretary-replied`, `auto:appointment-sync` (cancelado), classifier `general` | Saída daqui limpa o chip `interesse` (wipe do `pipelineMove`) |
-| Consulta agendada | `Consulta agendada` | ✅ | `auto:appointment-sync` (agendado/consulta, agendado/retorno) | 🔒 em `HUMAN_SCHEDULING_STAGES` — IA **não** move para cá |
-| Tratamento agendado | `Tratamento agendado` | ✅ | `auto:appointment-sync` (agendado/procedimento) | 🔒 `HUMAN_SCHEDULING_STAGES`. Coluna renomeada de "Procedimento agendado" em `20260618021516` |
-| Consulta finalizada | `Consulta finalizada` | ✅ | `auto:appointment-sync` (realizado/consulta), `auto:consulta-passou` | 🔒 `HUMAN_SCHEDULING_STAGES`. Entrada aqui dispara wipe de datas + `aguardando=true` |
-| 1ª Sessão Finalizada | `1ª Sessão Finalizada` | ✅ | `auto:appointment-sync` (realizado/procedimento), `auto:procedimento-passou` | 🔒 `HUMAN_SCHEDULING_STAGES`. Renomeada de "Em tratamento" na PR9 (2026-06-22); alias legado aponta para o mesmo `stage_id` |
-| Sem resposta | `Sem resposta` | ✅ | `auto:appointment-sync` (faltou), classifier `general` | |
-| Nutrição inativa | `Nutrição inativa` | ✅ | `auto:followup-7d`, classifier `nurture`, cron 60d ex-Paciente antigo | Saída permitida do D3 |
-| Nutrição Antigos (>60d) | `Nutrição Antigos` | ✅ | `auto:inactivity-tick` (SLA 60d) | Saída permitida do D3. **Não** está em `CANON_NAMES` do classifier — só a regra determinística alcança |
-| Paciente antigo | `Paciente antigo` | ✅ | `auto:ciclo-concluido`, `auto:monthly-sweep-tick` | 🔒 **D3**: só sai por automação para as duas Nutrições. Classifier nem tenta mover lead que já está aqui (`locked_in_paciente_antigo`) |
-| B2B / Stakeholders | `B2B / Stakeholders` | ✅ | classifier `b2b` | `is_terminal=true` |
-| Desqualificado / Fora de escopo | `Desqualificado` | ❌ **não** | — | Nenhum seed mapeia esse canônico. Classifier → `stage_alias_not_found`. `is_terminal=true`. `KNOWN_ISSUES.md` #-11 |
+| Leads de entrada | `Novo` | ❌ | `auto:novo-lead` | Nenhum seed mapeia "Leads de entrada"→`Novo`. Quebra `auto:secretary-replied` (sempre `not_in_novo`) |
+| Qualificação | `Qualificação` | ✅ | `auto:secretary-replied`, `auto:reactivation-inbound` (de Nutrição Inativa) | Saída daqui limpa o chip `interesse` (wipe do `pipelineMove`) |
+| Sem resposta | `Sem resposta` | ✅ | **`auto:followup-24h`** (24h sem mensagem do paciente em Qualificação) | Entrada dispara FU#1; FU#2 em +48h. Ambos `run_once` |
+| Nutrição Inativa (Geladeira de Leads) | `Nutrição inativa` | ✅ | `stage_idle` 7d saindo de Sem Resposta | Cadência de reengajamento na entrada |
+| Desqualificado / Fora de escopo | — | ❌ | só manual | `is_terminal=true`. Sem canônico: nenhuma automação alcança |
+| Administrativo | `B2B / Stakeholders` (legado) | ✅ | só manual | Ex-"B2B / Stakeholders", renomeada em 12/08 mantendo o `stage_id`. O canônico legado não é resolvido por ninguém |
+| Nutrição Antigos (migrada) | — | ❌ removido | — | Esvaziada no Bloco B; alias apagado de propósito para nenhuma regra resolvê-la |
+
+### Funil de Pacientes
+
+| Nome no banco | Canônico | Alias | Quem move para lá | Notas |
+|---|---|---|---|---|
+| Consulta agendada | `Consulta agendada` | ✅ | `auto:field-changed-consulta` 🔀, `auto:appointment-sync` (agendado/consulta, agendado/retorno) 🔀 | Nunca esfria por inatividade (decisão D5) |
+| Tratamento agendado | `Tratamento agendado` | ✅ | `auto:field-changed-procedimento` 🔀, `auto:appointment-sync` (agendado/procedimento) 🔀 | Idem. Lembretes 24h/1h ainda não existem para tratamento |
+| Consulta finalizada | `Consulta finalizada` | ✅ | `auto:appointment-sync` (realizado/consulta), **manual** | Entrada dispara wipe de datas + `aguardando=true` e a pesquisa de satisfação (`run_once`) |
+| Tratamento Finalizado | `1ª Sessão Finalizada` | ✅ | `auto:appointment-sync` (realizado/procedimento), **manual** | Ex-"Tratamento Ativo", ex-"Em tratamento". O canônico sobreviveu a dois renames |
+| **Reagendamento** | `Reagendamento` | ✅ | `auto:appointment-sync` (faltou, cancelado), `auto:field-cleared-reagendamento`, `auto:reactivation-inbound` (de Finalizada e Paciente Inativo) | Coluna de trabalho do funil. 7 dias parado → Paciente Inativo |
+| Paciente Inativo | `Paciente antigo` | ✅ | `stage_idle` 60d de Finalizada, `stage_idle` 7d de Reagendamento | Ex-"Paciente antigo", fundida com "Nutrição Antigos" no Bloco B. Fim da linha: só sai se o paciente voltar a falar |
+
+🔀 = travessia entre funis, exige linha em `pipeline_crossings`
 
 ## Lista canônica no código
 
@@ -57,8 +73,14 @@ Novo · Qualificação · Consulta agendada · Tratamento agendado · Consulta f
 Desqualificado · B2B / Stakeholders
 ```
 
-`type Canon` em `pipeline-deterministic/index.ts` (10 nomes — o que a regra bruta usa) inclui
-`Nutrição Antigos` e **não** inclui `Desqualificado` nem `B2B / Stakeholders`.
+> ⚠️ **Desde 12/08/2026 essa lista não move nada.** Os três caminhos de
+> movimentação do classifier (`auto:classifier-general`, `-nurture`, `-b2b`) foram
+> **removidos**. `CANON_NAMES` sobrevive apenas como vocabulário do prompt: a IA
+> ainda *sugere* um stage, e a sugestão é registrada em telemetria sem efeito.
+
+`type Canon` em `pipeline-deterministic/index.ts` (11 nomes — o que a regra bruta usa)
+inclui `Nutrição Antigos` e `Reagendamento`, e **não** inclui `Desqualificado` nem
+`B2B / Stakeholders`.
 
 ⚠️ **As duas listas divergem de propósito**, mas a divergência não está expressa em nenhum tipo
 compartilhado — são dois `type Canon` independentes que podem dessincronizar em silêncio.
@@ -75,15 +97,22 @@ Conjunto que marca "lead já passou por tratamento" — alimenta `hasBeenTreated
 ⚠️ Manter `Em tratamento` é obrigatório: `lead_stage_history` está cheio do nome antigo. Removê-lo
 faz leads antigos passarem a ser tratados como novos.
 
-## `HUMAN_SCHEDULING_STAGES`
+> ✅ **Corrigido em 12/08/2026.** Antes esse conjunto era comparado contra o **nome
+> real** da coluna. Quando "1ª Sessão Finalizada" virou "Tratamento Ativo", a
+> detecção parou de funcionar e a IA rebaixou 5 pacientes em tratamento para
+> Qualificação — a última em 11/08 às 14:42. Agora `hasBeenTreatedBefore` resolve
+> por **apelido canônico** (`context.ts`), imune a rename.
+>
+> Há uma **segunda cópia divergente** de `TREATED_STAGES` em
+> `pipeline-classify/rules/first-consult.ts`, sem `1ª Sessão Finalizada`. Ainda
+> compara por nome. Pendente.
 
-Destinos que a IA **nunca** pode alcançar (`apply.ts`). Tentativa → `ai_scheduling_disabled_by_human_transition`:
+## `HUMAN_SCHEDULING_STAGES` — removido
 
-```
-Consulta agendada · Tratamento agendado · Consulta finalizada · 1ª Sessão Finalizada
-```
-
-Só humano e `auto:appointment-sync` colocam leads nesses stages.
+Existia em `apply.ts` para impedir a IA de alcançar as colunas de agendamento.
+**Foi removido em 12/08/2026** junto com os caminhos de movimentação: sem move,
+não há destino a bloquear. Quem coloca lead nessas colunas hoje é a secretária
+(preenchendo a data) ou `auto:appointment-sync`.
 
 ## Verificar no banco
 
