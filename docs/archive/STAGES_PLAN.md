@@ -3,6 +3,7 @@ title: "Pipeline — Stages atuais (Clínica ÓR)"
 topic: kanban
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-19
 summary: "Mapa das 11 colunas do pipeline da Clínica ÓR (v5), critério de entrada/saída, e automações de inatividade."
 related_docs:

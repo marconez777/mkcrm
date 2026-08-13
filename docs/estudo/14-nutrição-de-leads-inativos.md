@@ -3,6 +3,7 @@ title: "Estudo: Nutrição de Leads Inativos"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'Nutrição de Leads Inativos' do funil Agendamentos Novo (Clínica ÓR): 300 leads."
 ---

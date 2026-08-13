@@ -3,6 +3,7 @@ title: "Estudo: Antigo Consulta/procedimento agendado"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'Antigo Consulta/procedimento agendado' do funil Agendamentos Novo (Clínica ÓR): 6 leads."
 ---

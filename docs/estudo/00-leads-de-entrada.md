@@ -3,6 +3,7 @@ title: "Estudo: Leads de entrada"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'Leads de entrada' do funil Agendamentos Novo (Clínica ÓR): 7 leads."
 ---

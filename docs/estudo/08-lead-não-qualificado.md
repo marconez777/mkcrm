@@ -3,6 +3,7 @@ title: "Estudo: Lead não qualificado"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'Lead não qualificado' do funil Agendamentos Novo (Clínica ÓR): 8 leads."
 ---

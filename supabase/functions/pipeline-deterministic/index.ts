@@ -90,6 +90,46 @@ async function resolveStageId(
   return (stage?.id as string) ?? null;
 }
 
+/**
+ * Resolve o destino de uma regra, aceitando travessia entre pipelines.
+ *
+ * 1) Tenta a coluna dentro do pipeline atual do lead (comportamento de sempre).
+ * 2) Se não existir lá, procura uma travessia DECLARADA saindo da coluna atual
+ *    em `pipeline_crossings`. Prefere `trigger_key` igual à origem da regra;
+ *    só usa o coringa '*' quando ele é único. Ambíguo => recusa.
+ *
+ * Sem isto, separar Vendas de Pacientes quebraria a conversão: `resolveStageId`
+ * filtra por `lead.pipeline_id` e devolveria null em silêncio.
+ * Ver docs/tenants/clinica-or/FLUXO_ALVO.md §4.
+ */
+async function resolveDestination(
+  client: SupabaseClient,
+  lead: { clinic_id: string; pipeline_id: string; stage_id: string | null },
+  canonical: Canon,
+  source: string,
+): Promise<string | null> {
+  const own = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, canonical);
+  if (own) return own;
+  if (!lead.stage_id) return null;
+
+  const { data } = await client
+    .from("pipeline_crossings")
+    .select("to_stage_id, trigger_key")
+    .eq("clinic_id", lead.clinic_id)
+    .eq("from_stage_id", lead.stage_id)
+    .eq("enabled", true)
+    .eq("allow_auto", true);
+
+  const exact = (data ?? []).filter((c) => c.trigger_key === source);
+  if (exact.length === 1) return exact[0].to_stage_id as string;
+  if (exact.length > 1) {
+    console.warn(`[resolveDestination] travessia ambígua para ${source} de ${lead.stage_id}`);
+    return null;
+  }
+  const wild = (data ?? []).filter((c) => c.trigger_key === "*");
+  return wild.length === 1 ? (wild[0].to_stage_id as string) : null;
+}
+
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
   const { data } = await client
     .from("app_settings")
@@ -375,11 +415,18 @@ async function ruleAppointmentSync(
   }
 
   if (!targetCanon) return { skipped: "no_target", patch };
-  const toStageId = await resolveStageId(
+  // Aceita travessia: compromisso marcado como "agendado" para um lead ainda em
+  // Vendas leva o card para Pacientes.
+  //
+  // ⚠️ Etapa 5: os destinos de `faltou` (hoje "Sem resposta") e `cancelado`
+  // (hoje "Qualificação") precisam virar "Reagendamento" — no desenho novo a
+  // secretária apaga a data e o card fica no funil de Pacientes. Enquanto não
+  // mudarem, essas duas transições serão recusadas como travessia não declarada.
+  const toStageId = await resolveDestination(
     client,
-    lead.clinic_id,
-    lead.pipeline_id,
+    lead,
     targetCanon,
+    "auto:appointment-sync",
   );
   if (!toStageId) return { skipped: `stage_not_found:${targetCanon}` };
   if (lead.stage_id === toStageId) {
@@ -512,7 +559,9 @@ async function ruleFieldChanged(
         .eq("id", leadId)
         .single();
       if (!lead?.pipeline_id) continue;
-      const toStageId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, m.canon);
+      // Aceita travessia entre pipelines: no desenho de dois funis, Qualificação
+      // (Vendas) → Consulta/Tratamento Agendado (Pacientes) cruza a fronteira.
+      const toStageId = await resolveDestination(client, lead, m.canon, m.src);
       if (!toStageId || lead.stage_id === toStageId) continue;
       const res = await pipelineMove(client, {
         leadId,

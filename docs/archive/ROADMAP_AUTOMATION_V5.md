@@ -1,3 +1,13 @@
+---
+title: "ROADMAP E MITIGAÇÃO: Pipeline 100% Automatizado (V5)"
+topic: kanban
+kind: reference
+audience: agent
+status: historico
+updated: 2026-08-11
+summary: "Documento histórico. Registra decisões e desenho de arquitetura já superados — NÃO usar para decidir sobre o sistema atual."
+---
+
 # ROADMAP E MITIGAÇÃO: Pipeline 100% Automatizado (V5)
 
 > **AVISO PARA O AGENTE DE DESENVOLVIMENTO (Lovable/IA):** Este é um documento técnico de arquitetura. Leia-o atentamente antes de fazer qualquer modificação no código. Ele descreve o escopo exato para reescrever o motor de automação (v4.2 para v5) garantindo que os fluxos da clínica sejam 100% autônomos.

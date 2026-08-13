@@ -246,6 +246,12 @@ const REASON_LABEL: Record<string, string> = {
 function shortReason(r: string): string {
   if (REASON_LABEL[r]) return REASON_LABEL[r];
   if (r.startsWith("proc_nao_atendido")) return r.replace("proc_nao_atendido:", "Não oferecido: ");
+  // `procedimento:<valor>` vem cru do classificador — o prefixo não agrega no chip.
+  const proc = r.match(/^procedimento:(.+)$/i);
+  if (proc) {
+    const value = proc[1];
+    return REASON_LABEL[`proc_${value.toLowerCase()}`] ?? value.replace(/_/g, " ");
+  }
   return r.replace(/_/g, " ");
 }
 

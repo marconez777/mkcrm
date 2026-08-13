@@ -9,6 +9,7 @@ code_refs:
   - supabase/functions/_shared/evolution.ts
   - supabase/functions/evolution-webhook/index.ts
   - supabase/functions/evolution-send/index.ts
+  - supabase/migrations/20260617211827_e73add80-241d-479d-ab8f-92f221aab0ae.sql
 ---
 
 # Webhook e Mensageria Evolution API

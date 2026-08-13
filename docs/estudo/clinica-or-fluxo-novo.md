@@ -3,11 +3,12 @@ title: "Clínica ÓR — Fluxo novo do pipeline"
 topic: kanban
 kind: flow
 audience: agent
+status: historico
 updated: 2026-06-21
 summary: "Fluxo novo do pipeline da Clínica ÓR: 2 follow-ups antes de Sem Resposta, ciclo mensal para Paciente Antigo, duas geladeiras de nutrição com tags/segmentos automáticos e relatório Dia 1."
 code_refs:
   - supabase/functions/automations-tick/
-  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-deterministic/
   - supabase/functions/pipeline-monthly-cycle-or/
   - supabase/functions/report-finalizados-mensal-or/
   - src/components/tracking/MonthlyFinalizadosReportCard.tsx

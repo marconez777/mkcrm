@@ -9,7 +9,7 @@ tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
 code_refs:
   - supabase/functions/pipeline-classify/
-  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-deterministic/
   - supabase/functions/pipeline-monthly-cycle-or/
   - supabase/functions/report-finalizados-mensal-or/
 related_docs:

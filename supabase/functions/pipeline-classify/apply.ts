@@ -7,15 +7,12 @@ import {
   PROTECTED_TAGS,
   DATE_FIELD_KEYS,
   G10_WINDOW_MS,
-  TREATED_STAGES,
   type ClassificationV2,
-  type Canon,
 } from "./schema.ts";
 import type { LeadContext } from "./context.ts";
 import { resolveMentionedDates, fieldKeyFor } from "./date-parser.ts";
 import { evaluateFirstConsult } from "./rules/first-consult.ts";
 import { runIntentEffects } from "./rules/intent-effects.ts";
-import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
 import { getToggle } from "../_shared/app-settings.ts";
 
@@ -27,12 +24,6 @@ const TELEMETRY_VERSION = 3;
 const HUMAN_SCHEDULING_FIELDS = new Set<string>([
   "consulta_agendada_em",
   "procedimento_agendado_em",
-]);
-const HUMAN_SCHEDULING_STAGES = new Set<string>([
-  "Consulta agendada",
-  "Tratamento agendado",
-  "Consulta finalizada",
-  "1ª Sessão Finalizada",
 ]);
 const HUMAN_TRANSITION_REJECT_REASON = "ai_scheduling_disabled_by_human_transition";
 
@@ -71,22 +62,6 @@ async function getAllowedTags(client: SupabaseClient): Promise<Set<string> | nul
     /* ignore */
   }
   return null;
-}
-
-async function resolveStageId(
-  client: SupabaseClient,
-  clinicId: string,
-  pipelineId: string,
-  canonical: Canon,
-): Promise<string | null> {
-  const { data } = await client
-    .from("stage_canonical_aliases")
-    .select("stage_id")
-    .eq("clinic_id", clinicId)
-    .eq("pipeline_id", pipelineId)
-    .eq("canonical_name", canonical)
-    .maybeSingle();
-  return (data?.stage_id as string | undefined) ?? null;
 }
 
 export type ApplyOutput = {
@@ -296,11 +271,14 @@ export async function applyClassification(
 
   // ===== 5) UPDATE atômico via RPC (não dispara G10) =====
   // Em modo maestro-only, NÃO aplica tags/custom_fields (são reaproveitados).
-  // Guard D3 (PR10.2): se o lead está travado em "Paciente antigo", NÃO grava
-  // tags/campos — antes da correção a escrita acontecia mesmo com o move
-  // bloqueado, deixando status/tag órfãos.
-  const lockedInPacienteAntigo = applyMaestro && ctx.stageName === "Paciente antigo";
-  if (applyTypifier && !lockedInPacienteAntigo && (tagsChanged || fieldsChanged)) {
+  //
+  // Removido em 12/08/2026: a trava que impedia gravar tags/campos quando o lead
+  // estava em "Paciente antigo". Ela existia porque a IA movia cards e o move era
+  // bloqueado nessa coluna, deixando tag órfã. Sem movimentação por IA, o motivo
+  // desapareceu — e a comparação era por NOME de coluna, que quebraria sozinha no
+  // rename para "Paciente Inativo". A IA agora enriquece paciente inativo como
+  // qualquer outro lead. Ver docs/tenants/clinica-or/PLANO_IMPLEMENTACAO.md §5.
+  if (applyTypifier && (tagsChanged || fieldsChanged)) {
     const { error: rpcErr } = await client.rpc("apply_lead_automation_patch", {
       p_lead_id: lead.id,
       p_custom_fields: fieldsChanged ? nextFields : null,
@@ -311,223 +289,21 @@ export async function applyClassification(
     }
   }
 
-  // ===== 6) STRICT NO-MOVE (exceto B2B com guards) =====
-  const stageSuggestion = cls.stage_suggestion;
-  let stageOutcome: Record<string, unknown> = {
-    suggested: stageSuggestion,
+  // ===== 6) NO-MOVE — a IA nunca move card =====
+  // Removido em 12/08/2026 (Etapa 1 do PLANO_IMPLEMENTACAO). Os três caminhos de
+  // movimentação — auto:classifier-b2b, auto:classifier-nurture e
+  // auto:classifier-general — foram apagados. A movimentação do funil é 100%
+  // determinística, por gatilho.
+  //
+  // A sugestão do Maestro continua registrada em telemetria, sem nenhum efeito
+  // sobre o card. Ver docs/tenants/clinica-or/FLUXO_ALVO.md.
+  const stageOutcome: Record<string, unknown> = {
+    suggested: cls.stage_suggestion,
     current_stage_name: ctx.stageName,
     would_move: false,
-    reason: applyMaestro ? "strict_no_move" : "skipped_partial_mode",
+    reason: applyMaestro ? "strict_no_move:ai_movement_removed" : "skipped_partial_mode",
     confidence: cls.confidence,
   };
-
-  // Lock D3 (V5): se o lead já está em "Paciente antigo", o Classifier NEM TENTA
-  // sugerir movimentação. Defesa em profundidade junto com o Guard D3 do helper
-  // pipelineMove. O Tipificador continua livre p/ editar chips/campos.
-  if (applyMaestro && ctx.stageName === "Paciente antigo") {
-    stageOutcome = {
-      ...stageOutcome,
-      would_move: false,
-      reason: "locked_in_paciente_antigo",
-      path: "guard_d3",
-    };
-  } else if (applyMaestro) {
-    const b2bEnabled = await isEnabled(client, "automation.b2b_move.enabled");
-    const b2bGuardPassed =
-      cls.is_b2b &&
-      cls.confidence >= 0.95 &&
-      suggested.includes("b2b") &&
-      !ctx.recentStageHistory.some(
-        (h) =>
-          (h.to && TREATED_STAGES.has(h.to)) ||
-          (h.from && TREATED_STAGES.has(h.from)),
-      );
-
-    if (cls.is_b2b && b2bEnabled && b2bGuardPassed) {
-      const b2bId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "B2B / Stakeholders");
-      if (b2bId && lead.stage_id !== b2bId) {
-        const res = await pipelineMove(client, {
-          leadId: lead.id,
-          toStageId: b2bId,
-          source: "auto:classifier-b2b",
-          reason: `Classifier B2B (conf=${cls.confidence.toFixed(2)})`,
-          ruleKey: "automation.b2b_move.enabled",
-          idempotencyKey: `b2b:${lead.id}:${lastMessageId}`,
-        });
-        stageOutcome = {
-          suggested: stageSuggestion,
-          current_stage_name: ctx.stageName,
-          would_move: res.moved,
-          path: "b2b",
-          reason: res.moved ? "b2b_move_applied" : (res as { reason: string }).reason ?? "b2b_move_failed",
-          confidence: cls.confidence,
-        };
-      } else {
-        stageOutcome = {
-          ...stageOutcome,
-          path: "b2b",
-          reason: b2bId ? "b2b_already_at_destination" : "b2b_stage_alias_not_found",
-        };
-      }
-    } else if (cls.is_b2b) {
-      const failedGuards: string[] = [];
-      if (cls.confidence < 0.95) failedGuards.push(`confidence<0.95(${cls.confidence.toFixed(2)})`);
-      if (!suggested.includes("b2b")) failedGuards.push("missing_tag_b2b");
-      if (!b2bEnabled) failedGuards.push("toggle_off");
-      if (
-        ctx.recentStageHistory.some(
-          (h) =>
-            (h.to && TREATED_STAGES.has(h.to)) ||
-            (h.from && TREATED_STAGES.has(h.from)),
-        )
-      ) {
-        failedGuards.push("lead_has_treatment_history");
-      }
-      stageOutcome = {
-        ...stageOutcome,
-        path: "b2b",
-        reason: `b2b_guard_failed:${failedGuards.join(",")}`,
-      };
-    }
-
-    // ----- 6b) Nurture move (interesse-sem-fechamento → Nutrição inativa) -----
-    const nurtureCandidate =
-      cls.stage_suggestion === "Nutrição inativa" &&
-      !cls.is_b2b &&
-      (stageOutcome.would_move !== true);
-
-    if (nurtureCandidate) {
-      const nurtureEnabled = await isEnabled(client, "automation.nurture_move.enabled");
-      const validIntent = cls.intent === "objecao" || cls.intent === "desistencia";
-      const fromStageOk = ctx.stageName === "Novo" || ctx.stageName === "Qualificação";
-      const confOk = cls.confidence >= 0.8;
-      const noTreatmentHistory = !ctx.hasBeenTreatedBefore;
-
-      // Anti-conflito: não move se houve stage move humano nas últimas 24h.
-      const since = new Date(ctx.nowMs - 24 * 60 * 60 * 1000).toISOString();
-      const { data: recentHuman } = await client
-        .from("lead_stage_history")
-        .select("id")
-        .eq("lead_id", lead.id)
-        .gte("moved_at", since)
-        .not("moved_by_user_id", "is", null)
-        .limit(1);
-      const noRecentHumanMove = true;
-
-      const guardsOk =
-        nurtureEnabled && validIntent && fromStageOk && confOk && noTreatmentHistory && noRecentHumanMove;
-
-      if (guardsOk) {
-        const nurtureId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa");
-        if (nurtureId && lead.stage_id !== nurtureId) {
-          const res = await pipelineMove(client, {
-            leadId: lead.id,
-            toStageId: nurtureId,
-            source: "auto:classifier-nurture",
-            reason: `Classifier nurture (intent=${cls.intent}, conf=${cls.confidence.toFixed(2)})`,
-            ruleKey: "automation.nurture_move.enabled",
-            idempotencyKey: `nurture:${lead.id}:${lastMessageId}`,
-          });
-          stageOutcome = {
-            suggested: stageSuggestion,
-            current_stage_name: ctx.stageName,
-            would_move: res.moved,
-            path: "nurture",
-            reason: res.moved
-              ? "nurture_move_applied"
-              : (res as { reason: string }).reason ?? "nurture_move_failed",
-            confidence: cls.confidence,
-          };
-        } else {
-          stageOutcome = {
-            ...stageOutcome,
-            path: "nurture",
-            reason: nurtureId ? "nurture_already_at_destination" : "nurture_stage_alias_not_found",
-          };
-        }
-      } else {
-        const failed: string[] = [];
-        if (!nurtureEnabled) failed.push("toggle_off");
-        if (!validIntent) failed.push(`intent_not_in_objecao_desistencia(${cls.intent})`);
-        if (!fromStageOk) failed.push(`from_stage_not_eligible(${ctx.stageName})`);
-        if (!confOk) failed.push(`confidence<0.8(${cls.confidence.toFixed(2)})`);
-        if (!noTreatmentHistory) failed.push("has_treatment_history");
-        if (!noRecentHumanMove) failed.push("recent_human_move_24h");
-        stageOutcome = {
-          ...stageOutcome,
-          path: "nurture",
-          reason: `nurture_guard_failed:${failed.join(",")}`,
-        };
-      }
-    }
-
-    // ----- 6c) General Move (Maestro) -----
-    // Transição agendamento humano: bloqueia mover IA para estágios de agendamento/finalização.
-    if (
-      !stageOutcome.would_move &&
-      stageSuggestion !== ctx.stageName &&
-      HUMAN_SCHEDULING_STAGES.has(stageSuggestion)
-    ) {
-      stageOutcome = {
-        ...stageOutcome,
-        path: "general",
-        reason: HUMAN_TRANSITION_REJECT_REASON,
-      };
-    } else if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
-      // General move allows the AI to move the lead to normal stages (e.g. Consulta agendada)
-      const confOk = cls.confidence >= 0.8;
-      
-      // Anti-conflito: não move se houve stage move humano nas últimas 24h.
-      const since = new Date(ctx.nowMs - 24 * 60 * 60 * 1000).toISOString();
-      const { data: recentHuman } = await client
-        .from("lead_stage_history")
-        .select("id")
-        .eq("lead_id", lead.id)
-        .gte("moved_at", since)
-        .not("moved_by_user_id", "is", null)
-        .limit(1);
-      const noRecentHumanMove = true;
-
-      if (confOk && noRecentHumanMove) {
-        const destId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, stageSuggestion);
-        if (destId && lead.stage_id !== destId) {
-          const res = await pipelineMove(client, {
-            leadId: lead.id,
-            toStageId: destId,
-            source: "auto:classifier-general",
-            reason: `Classifier general move (intent=${cls.intent}, conf=${cls.confidence.toFixed(2)})`,
-            // ruleKey omitido para garantir que o move sempre ocorra, forçando 100% automação
-            idempotencyKey: `general:${lead.id}:${lastMessageId}`,
-          });
-          stageOutcome = {
-            suggested: stageSuggestion,
-            current_stage_name: ctx.stageName,
-            would_move: res.moved,
-            path: "general",
-            reason: res.moved
-              ? "general_move_applied"
-              : (res as { reason: string }).reason ?? "general_move_failed",
-            confidence: cls.confidence,
-          };
-        } else {
-          stageOutcome = {
-            ...stageOutcome,
-            path: "general",
-            reason: destId ? "already_at_destination" : "stage_alias_not_found",
-          };
-        }
-      } else {
-        const failed: string[] = [];
-        if (!confOk) failed.push(`confidence<0.8(${cls.confidence.toFixed(2)})`);
-        if (!noRecentHumanMove) failed.push("recent_human_move_24h");
-        stageOutcome = {
-          ...stageOutcome,
-          path: "general",
-          reason: `general_guard_failed:${failed.join(",")}`,
-        };
-      }
-    }
-  }
 
   // ===== 7) Side-effects por intent (só em modo full ou maestro) =====
   const intentResults = applyMaestro

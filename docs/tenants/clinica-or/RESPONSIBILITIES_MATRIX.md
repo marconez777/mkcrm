@@ -1,3 +1,28 @@
+---
+title: "Matriz de responsabilidades UI × Banco × IA (histórico) — Clínica ÓR"
+topic: kanban
+kind: reference
+audience: both
+status: historico
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+updated: 2026-08-11
+summary: "Mapa de onde cada regra de negócio vive. Migrado do diretório duplicado clinica_or/ em 11/08/2026. Mantido como histórico: contém duas afirmações refutadas pela auditoria de 11/08."
+related_docs:
+  - docs/tenants/clinica-or/auditoria-11-08-2026.md
+  - docs/_audit/MAPA_CODIGO_PIPELINE.md
+---
+
+> ⚠️ **DOCUMENTO HISTÓRICO — não usar para decidir.**
+> Migrado de `docs/tenants/clinica_or/` (diretório duplicado, removido em 11/08/2026).
+> Verificado contra código e banco na [auditoria de 11/08](auditoria-11-08-2026.md):
+>
+> - **REFUTADO — "Movimentação Proibida (Conflito 24h)".** A trava não existe. Em `apply.ts` a variável `noRecentHumanMove` está fixada em `true`, tornando a checagem código morto. Medido: **6 casos** de IA sobrescrevendo movimentação manual em menos de 24h, o último em 07/08/2026.
+>
+> - **REFUTADO — "limpeza de pipeline 100% controlada pelos switches na UI".** A regra `no_reply_after` de 48h **não existe em produção**. O único mecanismo ativo é o `pipeline-deterministic`, que move de Qualificação direto para Nutrição Inativa aos 7 dias, pulando "Sem resposta".
+>
+> - **Confere:** o G10 de 7 dias e o lock vitalício de `origem` funcionam como descrito.
+
 # Matriz de Responsabilidades: UI, Banco de Dados e IA (Clínica ÓR)
 
 Este documento esclarece exatamente onde cada regra de negócio vive no sistema da Clínica ÓR. Isso é vital para saber **onde** procurar e **onde** consertar quando o sistema apresentar um comportamento inesperado (ou quando for necessário criar uma regra nova).

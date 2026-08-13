@@ -10,6 +10,7 @@ clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
 code_refs:
   - supabase/functions/pipeline-classify/
   - src/components/inbox/CustomFieldsPanel.tsx
+  - supabase/functions/pipeline-deterministic/
 related_docs:
   - docs/tenants/clinica-or/README.md
   - docs/pipeline/runtime/FIELDS_LIVE.md

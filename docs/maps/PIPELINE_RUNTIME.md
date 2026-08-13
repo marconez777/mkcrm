@@ -49,6 +49,13 @@ related_docs:
 
 # Pipeline Runtime — Mapa
 
+> ⚠️ **Nome de coluna desatualizado (verificado em 11/08/2026).** A coluna citada
+> aqui como **1ª Sessão Finalizada** hoje se chama **Tratamento Ativo** na UI.
+> `1ª Sessão Finalizada` permanece como nome **canônico** em
+> `stage_canonical_aliases` — comparação por nome real quebra, por canônico não.
+> Ver `docs/_audit/MAPA_CODIGO_PIPELINE.md` §2.1.
+
+
 Este documento é o **hub navegacional da Fase 3**. Ele consolida o inventário verificado linha-a-linha de todas as edge functions `pipeline-*` e libs `_shared/pipeline-*.ts`, e delega o detalhamento profundo para os arquivos existentes em `docs/pipeline/runtime/`. Todo conteúdo aqui foi cruzado com o código real em 2026-07-01.
 
 ## 1. Inventário de edge functions
