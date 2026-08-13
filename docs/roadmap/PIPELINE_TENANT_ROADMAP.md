@@ -30,7 +30,7 @@ Cada item vira um plano próprio quando executado. Este arquivo é o mapa de dep
 - **P2** — endurecimento operacional (custo, testes, higiene).
 - **P3** — cosmético / documentação.
 
-Um gap é considerado **feito** quando: (a) código merged, (b) doc atualizada com `updated:` de hoje, (c) `node scripts/docs-sync.mjs` rodado, (d) DRIFT.md revisado.
+Um gap é considerado **feito** quando: (a) código merged, (b) doc atualizada com `updated:` de hoje, (c) `code_refs` conferidos à mão, (d) o comportamento verificado no banco ou no código — **não na documentação**.
 
 ---
 
@@ -269,7 +269,7 @@ Ao mapear este roadmap contra as docs vigentes, apareceram divergências que pre
 | `docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md` | §4 passo 12 | Manda "rodar em dry comentando `pipelineMove`" — abordagem que corrompe watermark. Conflita com G9. | Ao entregar G9 |
 | `docs/pipeline/runtime/CRON_JOBS.md` | Todo o doc | Documenta 7 crons legacy da ÓR mas não menciona o novo `pipeline-dispatcher-tick`. | Ao entregar G5 (adicionar seção) |
 | `docs/tenants/README.md` | Linha 27 | Aponta para `.lovable/plan.md` (efêmero) como fonte do registry. Deveria apontar para este roadmap. | Agora — trocar por link para `docs/roadmap/PIPELINE_TENANT_ROADMAP.md` |
-| `docs/pipeline/MANUAL_CRIACAO_AGENTE.md` | Todo | Stub de 20 linhas só apontando para o HOWTO. Se `docs-sync` confirma que nenhum link externo aponta pra cá, pode arquivar. | P3 — verificar em `DRIFT.md` |
+| `docs/pipeline/MANUAL_CRIACAO_AGENTE.md` | Todo | Stub de 20 linhas só apontando para o HOWTO. Se nenhum link externo apontar pra cá, pode arquivar. | P3 — conferir com `grep -rn MANUAL_CRIACAO_AGENTE docs/` |
 | `docs/pipeline/runtime/KNOWN_ISSUES.md` | Item -10 (`stage_sequence_bindings`) | Reavaliação marcada para 2026-07-22 (12 dias). Fica no radar mas fora deste roadmap. | Independente |
 | `docs/pipeline/runtime/KNOWN_ISSUES.md` | Item #6 (`notify_pipeline_deterministic` sem trigger) | "Wiring do trigger fica como pendência separada" — órfão desde 2026-06-23. Precisa dono ou arquivar como decisão. | Independente |
 | `docs/pipeline/runtime/HELPERS.md` | 22 linhas | Doc raquítica. `_shared/` tem ~35 arquivos e vai crescer com G15. | P3 — expandir junto com G15 |

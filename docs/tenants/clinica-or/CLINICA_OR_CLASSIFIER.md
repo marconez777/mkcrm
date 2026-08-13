@@ -1,3 +1,30 @@
+---
+title: "Classifier e fluxo de pipeline — Clínica ÓR"
+topic: kanban
+kind: flow
+audience: both
+status: historico
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+updated: 2026-08-11
+summary: "Mapa do fluxo de um lead na Clínica ÓR com regras de movimentação, triggers e automações. Marcado como histórico: a afirmação central — de que a movimentação é 100% determinística e a IA não move cards — foi refutada pela auditoria de 11/08/2026."
+related_docs:
+  - docs/tenants/clinica-or/auditoria-11-08-2026.md
+  - docs/_audit/MAPA_CODIGO_PIPELINE.md
+---
+
+> ⚠️ **DOCUMENTO HISTÓRICO — contém afirmação refutada.**
+>
+> O aviso abaixo diz que a movimentação é *"100% determinística"* e que a IA foi
+> depreciada para mover cards. **Isso é falso em produção.** A
+> [auditoria de 11/08](auditoria-11-08-2026.md) mediu **64 movimentações** por
+> `auto:classifier-general` em 30 dias, a última em 11/08/2026 às 14:42.
+>
+> A tabela de colunas abaixo também está desatualizada: a coluna listada como
+> **1ª Sessão Finalizada** hoje se chama **Tratamento Ativo** na UI
+> (`1ª Sessão Finalizada` permanece como nome **canônico** em
+> `stage_canonical_aliases`).
+
 # 🧠 Classifier Config & Fluxo de Pipeline - Clínica ÓR
 
 Este documento mapeia o fluxo completo de um lead dentro da Clínica ÓR, detalhando cada inteligência embutida, regras de movimentação, triggers de banco de dados e automações ativas.

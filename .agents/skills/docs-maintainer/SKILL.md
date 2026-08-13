@@ -1,89 +1,147 @@
 ---
 name: docs-maintainer
-description: Manter os 146+ arquivos de docs/ desta base sincronizados com o código. Use SEMPRE que o usuário pedir para criar, atualizar, revisar ou auditar documentação, ou quando você editar rotas de src/pages, edge functions em supabase/functions, ou tabelas — para também atualizar o(s) .md correspondentes.
+description: Manter os 130+ arquivos de docs/ desta base sincronizados com o código. Use SEMPRE que o usuário pedir para criar, atualizar, revisar ou auditar documentação, ou quando você editar rotas de src/pages, edge functions em supabase/functions, ou tabelas — para também atualizar o(s) .md correspondentes.
 ---
 
 # docs-maintainer
 
-Documentação aqui é **infra** — o agente Lovable depende dela para localizar arquivos rapidamente em sessões futuras. Mantenha-a saudável seguindo este fluxo.
+Documentação aqui é **infra** — agentes dependem dela para localizar arquivos em
+sessões futuras. Mantenha-a saudável seguindo este fluxo.
 
-## 1. Ponto de entrada: `docs/INDEX.json`
+> ⚠️ **Esta skill foi reescrita em 11/08/2026.** A versão anterior descrevia uma
+> infraestrutura que **não existe neste repositório**: `docs/INDEX.json`,
+> `docs/DRIFT.md`, `docs/support/`, `public/docs-index.json`,
+> `scripts/docs-sync.mjs`, `scripts/gen-support-kb-manifest.mjs` e
+> `src/pages/admin/AdminDocs.tsx`. Nenhum deles existe — a maioria foi deletada em
+> 18/06/2026. Se você encontrar instruções para usá-los em outro lugar, estão
+> erradas. Decisão registrada em `docs/_audit/PLANO_DOCS.md` (Decisão 3).
 
-**Antes de varrer `docs/`, leia `docs/INDEX.json`.** Ele tem `path`, `title`, `topic`, `kind`, `summary`, `headings`, `code_refs` e `related_docs` de todo `.md`. Filtrar/buscar nesse JSON é muito mais barato que `ls`/`rg` em 146 arquivos.
+---
 
-Exemplos de uso direto via `node -e`:
+## 0. Regra que precede todas as outras
+
+> ## **NÃO EXISTE FLUXO PADRÃO ENTRE CLIENTES.**
+>
+> Cada cliente (tenant) terá um fluxo de pipeline **completamente** diferente.
+> Toda doc que descreva fluxo, coluna, gatilho, campo ou chip **deve declarar
+> `tenant:` no frontmatter**. Doc de fluxo sem tenant declarado é bug de
+> documentação — o leitor vai assumir que vale para todos, e não vale.
+>
+> Hoje o único tenant com pipeline ativo é a **Clínica ÓR**
+> (`cf038458-457d-4c1a-9ac4-c88c3c8353a1`). Isso **não** faz dela o padrão.
+>
+> Contexto: `docs/roadmap/RASCUNHO_SEPARACAO_FLUXO_TENANT.md`
+
+---
+
+## 1. Ordem de confiança
+
+**banco → código → documentação.** Nunca o inverso.
+
+A documentação desta base **contradiz a produção** em vários pontos. Uma auditoria
+em 11/08/2026 refutou 3 conclusões que tinham sido derivadas de docs. Antes de
+afirmar qualquer coisa sobre como o sistema se comporta, verifique no código ou no
+banco.
+
+Fontes de verdade já verificadas:
+
+| Doc | Cobre |
+|---|---|
+| `docs/_audit/MAPA_CODIGO_PIPELINE.md` | Gatilhos, crons, movimentação, campos, chips, configuração |
+| `docs/tenants/clinica-or/auditoria-11-08-2026.md` | Estado real do pipeline da ÓR |
+| `docs/_audit/INVENTARIO_DOCS.md` | Censo de todos os `.md` |
+| `docs/_audit/PLANO_DOCS.md` | Destino decidido para cada doc |
+
+---
+
+## 2. Como encontrar docs
+
+Não existe índice gerado. Use busca direta:
 
 ```bash
-# achar o .md que documenta um tópico
-node -e "const d=require('./docs/INDEX.json'); console.log(d.filter(x=>x.topic==='email').map(x=>x.path).join('\n'))"
+# por tópico no frontmatter
+grep -rl "^topic: kanban" docs/ --include=*.md
 
-# achar docs cujo code_refs cobre um arquivo
-node -e "const d=require('./docs/INDEX.json'); console.log(d.filter(x=>x.code_refs.some(r=>'src/pages/Inbox.tsx'.startsWith(r))).map(x=>x.path).join('\n'))"
+# docs cujo code_refs cobre um arquivo
+grep -rl "src/pages/Inbox.tsx" docs/ --include=*.md
+
+# docs de um tenant
+grep -rl "^tenant: clinica-or" docs/ --include=*.md
 ```
 
-## 2. Frontmatter obrigatório
+---
 
-Todo `.md` em `docs/` começa com:
+## 3. Frontmatter obrigatório
 
 ```yaml
 ---
 title: "..."                    # H1 do documento, em PT-BR
-topic: email                    # email|ai|inbox|kanban|tracking|auth|admin|billing|automations|integracao|support|operations|roadmap|conventions|architecture|database|known-issues|general
-kind: map                       # map|feature|flow|support|journey|troubleshooting|reference|roadmap|doc
-audience: agent                 # agent (interna) | user (suporte) | both
-updated: 2026-06-07             # data ISO da última edição relevante
+topic: kanban                   # email|ai|inbox|kanban|tracking|auth|admin|billing|automations|integracao|operations|roadmap|conventions|architecture|database|known-issues|general
+kind: map                       # map|feature|flow|reference|troubleshooting|roadmap|audit|doc
+audience: agent                 # agent | user | both
+status: vigente                 # vigente | historico | planejado
+updated: 2026-08-11             # data ISO da última edição relevante
 summary: "Uma frase descrevendo o que esta doc cobre."
-code_refs:                      # OBRIGATÓRIO em maps/features/flows — arquivos/dirs que esta doc descreve
-  - src/pages/email/
-  - supabase/functions/send-email/
-related_docs:                   # cross-links
-  - docs/features/EMAIL_CAMPAIGNS.md
+tenant: clinica-or              # OBRIGATÓRIO em qualquer doc de fluxo (ver §0)
+clinic_id: cf038458-...         # junto com tenant
+code_refs:                      # OBRIGATÓRIO em maps/features/flows
+  - src/pages/Kanban.tsx
+  - supabase/functions/pipeline-deterministic/
+related_docs:
+  - docs/tenants/clinica-or/auditoria-11-08-2026.md
 ---
 ```
 
-Regras:
-- Sempre que você editar uma doc, atualize `updated` para a data de hoje.
-- `code_refs` deve apontar para arquivo ou diretório (terminando em `/`) que realmente existe — o `docs-sync` falha se quebrar.
-- Em docs novas de feature/map, sempre defina `code_refs` — é assim que o drift detector funciona.
+### `status:` — o campo que evita decisão errada
 
-## 3. Ao editar código, atualize a doc
+| Valor | Significado |
+|---|---|
+| `vigente` | Descreve o sistema hoje; foi verificada |
+| `historico` | Já foi verdade; **não** usar para decidir |
+| `planejado` | Descreve intenção, não realidade |
 
-Use esta tabela mental:
+Doc sem `status` é tratada como não confiável.
+
+---
+
+## 4. Ao editar código, atualize a doc
 
 | Você mudou… | Atualize obrigatoriamente |
 |---|---|
-| rota nova em `src/App.tsx` ou `src/pages/<X>.tsx` nova | `docs/maps/<FEATURE>.md` (seção "Rotas") + `docs/frontend/PAGES.md` |
-| edge function nova ou assinatura mudou | `docs/maps/<FEATURE>.md` (seção "Edge functions") + `docs/edge-functions/<FEATURE>.md` |
-| tabela / RLS / migration relevante | `docs/maps/<FEATURE>.md` (seção "Banco") + `docs/database/SCHEMA.md` ou `RLS_POLICIES.md` |
-| invariante quebrável ("não tocar sem ler") | adicionar/editar item na seção 7 do mapa correspondente |
-| nova jornada do usuário | nova doc em `docs/support/journeys/` seguindo `docs/support/_templates/journey.md` |
-| nova página com UI relevante p/ suporte | nova doc em `docs/support/pages/` seguindo `docs/support/_templates/page.md` |
+| rota nova em `src/App.tsx` ou `src/pages/<X>.tsx` | `docs/maps/<FEATURE>.md` + `docs/frontend/PAGES.md` |
+| edge function nova ou assinatura mudou | `docs/maps/<FEATURE>.md` + `docs/edge-functions/INDEX.md` |
+| migration relevante | `docs/database/MIGRATIONS.md` |
+| **qualquer regra de fluxo de um tenant** | a doc daquele tenant em `docs/tenants/<slug>/` — **nunca** uma doc genérica |
+| invariante quebrável | seção de invariantes do mapa correspondente |
 
-Quando criar uma doc nova, use o template correspondente em `docs/support/_templates/` (para support) ou copie a estrutura de um mapa existente de tamanho parecido (para maps/features).
+---
 
-## 4. Finalização: rode o sync
+## 5. Finalização: conferência manual
 
-Sempre depois de criar/editar docs **ou** depois de mudanças em código que afetem `code_refs`:
+Não há validação automática. Confira à mão:
+
+1. **`code_refs` existem?** Foi a ausência dessa checagem que deixou
+   `supabase/functions/pipeline-inactivity-tick/` — que nunca existiu — citada em
+   6 docs por quase dois meses.
+2. **`updated:` é de hoje?**
+3. **`status:` está definido?**
+4. **Doc de fluxo declara `tenant:`?** (§0)
+5. **Afirmação sobre produção cita a fonte e a data da verificação?** (§1)
+
+Comando para o item 1:
 
 ```bash
-node scripts/docs-sync.mjs
+grep -rhn "^  - \(src\|supabase\|scripts\)/" docs/ --include=*.md | sed 's/.*- //' | sort -u | while read p; do [ -e "$p" ] || echo "QUEBRADO: $p"; done
 ```
 
-Isso:
-1. Preenche frontmatter faltante em docs novas.
-2. Regenera `docs/INDEX.json`, `public/docs-index.json`, `public/docs-content.json`.
-3. Regenera `docs/DRIFT.md` (revise!) — lista `code_refs` quebrados, rotas/edges sem doc.
-4. Regenera `supabase/functions/_shared/support-kb-manifest.ts` (RAG do SupportPanel).
-
-Modo CI: `node scripts/docs-sync.mjs --check` — só falha se houver `code_refs` quebrados.
-
-## 5. Tela `/admin/docs` (consumo humano)
-
-A tela em `src/pages/admin/AdminDocs.tsx` consome `public/docs-index.json` e `public/docs-content.json`. Não é necessário tocar nela ao editar docs — basta rodar `docs-sync` e o conteúdo aparece atualizado no próximo load.
+---
 
 ## 6. Pegadinhas
 
-- **Não** adicione frontmatter em `supabase/functions/_shared/support-kb/**` — esse diretório é separado e tem seu próprio gerador (`scripts/gen-support-kb-manifest.mjs`). `docs/support/` (que tem frontmatter) é o espelho legível.
-- Linhas longas em `summary:` precisam estar entre aspas se contiverem `:` ou `#`. O gerador faz isso automaticamente.
-- Se você adicionar uma chave nova ao frontmatter (ex: `owner`), ela é preservada pelo `docs-sync` — o script só preenche o que está ausente, nunca remove.
-- DRIFT.md pode ter falsos positivos em "rotas sem doc" (rotas óbvias como `/onboarding` que vivem na doc de uma feature genérica). Use bom senso ao decidir o que documentar.
+- Linhas de `summary:` com `:` ou `#` precisam estar entre aspas. **Ninguém faz isso
+  por você** — não há gerador.
+- Nomes de coluna de pipeline mudam na UI sem aviso. Doc que cita nome de coluna
+  envelhece rápido; prefira o **nome canônico** (`stage_canonical_aliases`) e diga
+  que é canônico. Dois defeitos de produção vieram de comparação por nome real.
+- Ao marcar uma doc como `historico`, **diga o que nela é falso**. Um aviso genérico
+  não impede ninguém de usar o conteúdo errado.

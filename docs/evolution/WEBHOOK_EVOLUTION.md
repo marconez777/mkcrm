@@ -7,7 +7,7 @@ updated: 2026-06-19
 summary: "Documentação do tratamento de concorrência e race condition no webhook da Evolution API usando try-catch no erro 23505 e constraint de unique index no banco de dados."
 code_refs:
   - supabase/functions/_shared/evolution.ts
-  - supabase/migrations/20260619_unique_index_leads.sql
+  - supabase/migrations/20260617211827_e73add80-241d-479d-ab8f-92f221aab0ae.sql
 ---
 
 # Webhook Evolution API (`evolution.ts`)

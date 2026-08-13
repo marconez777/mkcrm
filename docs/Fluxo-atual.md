@@ -14,6 +14,13 @@ related_docs:
 
 # Fluxo Comercial e Operacional do Pipeline
 
+> ⚠️ **Nome de coluna desatualizado (verificado em 11/08/2026).** A coluna citada
+> aqui como **1ª Sessão Finalizada** hoje se chama **Tratamento Ativo** na UI.
+> `1ª Sessão Finalizada` permanece como nome **canônico** em
+> `stage_canonical_aliases` — comparação por nome real quebra, por canônico não.
+> Ver `docs/_audit/MAPA_CODIGO_PIPELINE.md` §2.1.
+
+
 > Documento de referência enviado pelo cliente em 25/06/2026. Reflete o **comportamento alvo** do pipeline (não necessariamente o estado atual implementado). Servirá de base para análise de gaps entre o fluxo desejado e o que está rodando hoje.
 
 ## 1. Entrada do lead

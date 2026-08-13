@@ -1,3 +1,13 @@
+---
+title: "Erro: WordPress credentials not configured (Pipeline HTTP 500)"
+topic: known-issues
+kind: troubleshooting
+audience: agent
+status: historico
+updated: 2026-08-11
+summary: "Análise do erro HTTP 500 em Pipeline Runs causado por credenciais do WordPress ausentes. Registro de incidente — verificar se ainda ocorre antes de usar."
+---
+
 # Documentação de Erro: WordPress credentials not configured
 
 Esta documentação foi gerada para analisar e explicar o erro de Pipeline HTTP 500 relatado na interface do MKCRM (Pipeline Runs).

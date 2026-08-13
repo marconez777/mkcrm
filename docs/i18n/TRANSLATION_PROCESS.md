@@ -6,7 +6,7 @@ audience: agent
 updated: 2026-06-30
 summary: "Fluxo contínuo de tradução: extração de strings, geração via Lovable AI, revisão nativa e versionamento dos locales."
 code_refs:
-  - src/locales/
+  - src/i18n/locales/
 related_docs:
   - docs/i18n/ROADMAP.md
 ---

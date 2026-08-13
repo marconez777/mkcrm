@@ -1,3 +1,15 @@
+---
+title: "Bugs conhecidos: Evolution API e triggers de banco (julho/2026)"
+topic: known-issues
+kind: troubleshooting
+audience: agent
+status: historico
+updated: 2026-08-11
+summary: "Incidentes de julho/2026 que causaram perda silenciosa de mensagens inbound por falha em triggers acoplados à inserção de mensagens da Evolution API. Registro histórico para evitar reincidência."
+related_docs:
+  - docs/_audit/MAPA_CODIGO_PIPELINE.md
+---
+
 # Bugs Conhecidos: Evolution API e Triggers de Banco (Julho/2026)
 
 Este documento registra os incidentes recentes que causaram a perda silenciosa de mensagens inbound (mensagens recebidas de leads) devido a falhas em triggers do PostgreSQL acoplados à inserção de mensagens da Evolution API. O objetivo é servir de histórico e referência para evitar que erros parecidos ocorram no futuro.

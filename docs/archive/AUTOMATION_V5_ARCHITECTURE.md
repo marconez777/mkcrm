@@ -1,3 +1,13 @@
+---
+title: "Arquitetura e Automação do Pipeline de Agentes V5"
+topic: kanban
+kind: reference
+audience: agent
+status: historico
+updated: 2026-08-11
+summary: "Documento histórico. Registra decisões e desenho de arquitetura já superados — NÃO usar para decidir sobre o sistema atual."
+---
+
 # Arquitetura e Automação do Pipeline de Agentes V5
 
 Este documento é a **fonte de verdade** técnica sobre o funcionamento da classificação e movimentação de leads no CRM (Pipeline V5), projetado para operação 100% autônoma, garantindo que o sistema funcione com segurança, precisão e sem dependência humana para arrastar cards.

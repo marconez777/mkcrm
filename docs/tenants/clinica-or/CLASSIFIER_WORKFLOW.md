@@ -1,3 +1,26 @@
+---
+title: "Workflow de classificação da IA (histórico) — Clínica ÓR"
+topic: kanban
+kind: reference
+audience: both
+status: historico
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+updated: 2026-08-11
+summary: "Descrição do comitê de 5 agentes do pipeline-classify na Clínica ÓR. Migrado do diretório duplicado clinica_or/ em 11/08/2026. Mantido como histórico: o desenho de 5 agentes confere com a produção, mas a doc trata a ÓR como "caso avançado" de um padrão que não existe."
+related_docs:
+  - docs/tenants/clinica-or/auditoria-11-08-2026.md
+  - docs/_audit/MAPA_CODIGO_PIPELINE.md
+---
+
+> ⚠️ **DOCUMENTO HISTÓRICO — não usar para decidir.**
+> Migrado de `docs/tenants/clinica_or/` (diretório duplicado, removido em 11/08/2026).
+> Verificado contra código e banco na [auditoria de 11/08](auditoria-11-08-2026.md):
+>
+> - **A premissa está errada.** O texto trata a ÓR como "caso de uso mais avançado" frente a "modelos simplificados". **Não existe modelo padrão** — cada cliente terá um fluxo completamente diferente. Ver `docs/roadmap/RASCUNHO_SEPARACAO_FLUXO_TENANT.md`.
+>
+> - **O que confere:** os 5 agentes realmente rodam. `active_agents` no registry lista os 5 e o código **nunca lê esse campo** — roda sempre em modo `full`.
+
 # Clínica ÓR: Documentação do Workflow de Classificação (Classify)
 
 Este documento descreve detalhadamente como o `pipeline-classifier` está configurado exclusivamente para a **Clínica ÓR**. Por ser a primeira clínica ou um caso de uso mais avançado, o pipeline da Clínica ÓR difere dos modelos simplificados (que usam apenas um tipificador) e roda um modelo complexo baseado em um **comitê de 5 agentes IA**.

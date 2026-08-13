@@ -3,6 +3,7 @@ title: "Estudo: lead parou de responder"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'lead parou de responder' do funil Agendamentos Novo (Clínica ÓR): 14 leads."
 ---

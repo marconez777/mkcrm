@@ -3,6 +3,7 @@ title: "Estudo: Consulta finalizada"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'Consulta finalizada' do funil Agendamentos Novo (Clínica ÓR): 17 leads."
 ---

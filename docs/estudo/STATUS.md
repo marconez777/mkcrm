@@ -3,6 +3,7 @@ title: Estudo ÓR — Status da execução
 topic: general
 kind: doc
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Total processado: **14 colunas, 441 leads, 3.973 mensagens, 306 áudios**."
 ---
@@ -30,7 +31,7 @@ Total processado: **14 colunas, 441 leads, 3.973 mensagens, 306 áudios**.
 4. Síntese por lead (~ leads com ≥3 mensagens) — JSON estruturado, cache em `lead/<id>.json`.
 5. Síntese por coluna (14) — cache em `column/<stage_id>.json`.
 6. Renderizar `docs/estudo/*.md` + `docs/estudo-geral.md`.
-7. Rodar `node scripts/docs-sync.mjs`.
+7. Conferir à mão que os `code_refs` das docs tocadas existem (não há mais validador automático — ver `.agents/skills/docs-maintainer/SKILL.md`).
 
 ## Arquivos do pipeline
 

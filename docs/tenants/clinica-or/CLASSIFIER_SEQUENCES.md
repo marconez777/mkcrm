@@ -1,3 +1,26 @@
+---
+title: "Motor de sequências de mensagens (histórico) — Clínica ÓR"
+topic: kanban
+kind: reference
+audience: both
+status: historico
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+updated: 2026-08-11
+summary: "Descrição do tripé IA → trigger → sequence-tick para disparo de mensagens em sequência. Migrado do diretório duplicado clinica_or/ em 11/08/2026. Mantido como histórico: o mecanismo descrito está dormente."
+related_docs:
+  - docs/tenants/clinica-or/auditoria-11-08-2026.md
+  - docs/_audit/MAPA_CODIGO_PIPELINE.md
+---
+
+> ⚠️ **DOCUMENTO HISTÓRICO — não usar para decidir.**
+> Migrado de `docs/tenants/clinica_or/` (diretório duplicado, removido em 11/08/2026).
+> Verificado contra código e banco na [auditoria de 11/08](auditoria-11-08-2026.md):
+>
+> - **Mecanismo dormente.** `stage_sequence_bindings` está registrada como dormente em `KNOWN_ISSUES` (item -10) e a tabela está praticamente vazia — o trigger roda a cada movimentação consultando nada.
+>
+> - **Divergência de valor.** O texto cita `stage_enter`; a constraint do banco aceita `on_enter`/`on_exit`. O mismatch foi corrigido no código, mas a doc não acompanhou.
+
 # O Motor de Sequências: Integração entre IA, Banco e Automações (Clínica ÓR)
 
 O disparo de mensagens em sequência (como *Follow-ups* de abandono ou aquecimento) opera sobre um tripé arquitetural altamente desacoplado. Neste documento, explicamos como a Inteligência Artificial (Maestro) conversa com o enviador de mensagens sem que um "saiba" da existência do outro.

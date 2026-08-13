@@ -1,3 +1,15 @@
+---
+title: "Roadmap: Gemini 404 — modelo indisponível para novos usuários"
+topic: ai
+kind: roadmap
+audience: agent
+status: planejado
+updated: 2026-08-11
+summary: "Item aberto desde 22/07/2026: modelos Gemini retornando 404 'no longer available to new users' em googleChat e agentes via BYOK. Frontmatter adicionado em 11/08; status do item não reverificado."
+code_refs:
+  - supabase/functions/_shared/ai.ts
+---
+
 # Roadmap — Gemini 404 "no longer available to new users"
 
 Status: 🔴 aberto — 22/07/2026

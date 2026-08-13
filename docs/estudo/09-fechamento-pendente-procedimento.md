@@ -3,6 +3,7 @@ title: "Estudo: Fechamento pendente procedimento"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'Fechamento pendente procedimento' do funil Agendamentos Novo (Clínica ÓR): 6 leads."
 ---

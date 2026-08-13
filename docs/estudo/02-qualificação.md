@@ -3,6 +3,7 @@ title: "Estudo: Qualificação"
 topic: ai
 kind: reference
 audience: agent
+status: historico
 updated: 2026-06-16
 summary: "Análise da coluna 'Qualificação' do funil Agendamentos Novo (Clínica ÓR): 3 leads."
 ---

@@ -1,3 +1,17 @@
+---
+title: "Mapa: Billing, pagamentos e planos"
+topic: billing
+kind: map
+audience: agent
+status: vigente
+updated: 2026-08-11
+summary: "Mapa do ecossistema de cobrança do Chat Funnel AI, cobrindo os dois modelos paralelos em operação. Frontmatter adicionado em 11/08/2026; conteúdo não reverificado contra o banco."
+---
+
+> ℹ️ Frontmatter adicionado na F4 de 11/08/2026. **O conteúdo não foi reverificado**
+> contra código ou banco nesta passagem — a data de `updated` reflete a edição de
+> metadados, não uma auditoria de conteúdo.
+
 # Billing / Payments / Plans
 
 Última auditoria: Fase 9 do roadmap **F-DOC-FULL**.

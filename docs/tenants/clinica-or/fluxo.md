@@ -7,7 +7,7 @@ updated: 2026-07-17
 summary: "Fluxo novo do pipeline da Clínica ÓR: transição para Sem Resposta após 48h, ciclo mensal para Paciente Antigo, duas geladeiras de nutrição com tags/segmentos automáticos e relatório Dia 1."
 code_refs:
   - supabase/functions/automations-tick/
-  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-deterministic/
   - supabase/functions/pipeline-monthly-cycle-or/
   - supabase/functions/report-finalizados-mensal-or/
   - src/components/tracking/MonthlyFinalizadosReportCard.tsx

@@ -8,7 +8,7 @@ summary: "Mapeamento dos Hooks customizados do React, subscrições Realtime (We
 code_refs:
   - src/hooks/
   - src/lib/
-  - src/utils/
+  - src/lib/
   - src/integrations/
   - src/vite-env.d.ts
 related_docs:

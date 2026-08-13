@@ -1,3 +1,19 @@
+---
+title: "Especificação da arquitetura do agente de IA (desenvolvedor)"
+topic: ai
+kind: reference
+audience: agent
+status: historico
+updated: 2026-08-11
+summary: "Descreve o agente assistente do ambiente de desenvolvimento (identidade 'Antigravity'), seus recursos e base de conhecimento. Não descreve a IA do pipeline dos clientes — não confundir com pipeline-classify."
+related_docs:
+  - docs/_audit/MAPA_CODIGO_PIPELINE.md
+---
+
+> ⚠️ **Não confundir.** Este documento é sobre o agente de IA que assiste o
+> **desenvolvedor**. A IA que atua sobre leads de clientes é o `pipeline-classify` —
+> ver `docs/_audit/MAPA_CODIGO_PIPELINE.md`.
+
 # Especificação da Arquitetura do Agente de IA
 
 Este documento descreve como o agente assistente de IA (atualmente conhecido sob a identidade técnica de **Antigravity**) opera dentro do ambiente do desenvolvedor, seus recursos computacionais, sua base de conhecimento e sua capacidade de comunicação com o projeto.

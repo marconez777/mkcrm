@@ -21,6 +21,13 @@ related_docs:
 
 # Calendário de Agendamentos por Pipeline
 
+> ⚠️ **Nome de coluna desatualizado (verificado em 11/08/2026).** A coluna citada
+> aqui como **1ª Sessão Finalizada** hoje se chama **Tratamento Ativo** na UI.
+> `1ª Sessão Finalizada` permanece como nome **canônico** em
+> `stage_canonical_aliases` — comparação por nome real quebra, por canônico não.
+> Ver `docs/_audit/MAPA_CODIGO_PIPELINE.md` §2.1.
+
+
 ## 1. Objetivo
 
 Dar à secretária uma visão de calendário (mês / semana / dia) **dentro do contexto do pipeline**, onde cada appointment aparece como evento. Mover/redimensionar o evento ⇒ atualiza `scheduled_at` no banco ⇒ trigger já existente recomputa `consulta_agendada_em`/`procedimento_agendado_em` ⇒ chip do card no Kanban atualiza automaticamente.
@@ -169,7 +176,7 @@ UPDATE appointments SET status='realizado'
 | **PR11.5** | Drag & drop + resize (atualiza `scheduled_at`/`duration_min`) | edição inline |
 | **PR11.6** | `AppointmentDialog` (criar/editar/cancelar/realizar/faltou) | CRUD completo |
 | **PR11.7** | `SettingsAppointmentTypes` (admin do catálogo) | gestão de tipos |
-| **PR11.8** | Docs: atualizar `docs/pipeline/runtime/TRIGGERS_AUDIT.md`, criar `docs/maps/CALENDAR.md`, rodar `docs-sync` | drift zero |
+| **PR11.8** | Docs: atualizar `docs/pipeline/runtime/TRIGGERS_AUDIT.md`, criar `docs/maps/CALENDAR.md` | drift zero |
 
 ## 9. Riscos e mitigações
 
