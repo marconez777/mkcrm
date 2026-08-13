@@ -290,6 +290,44 @@ de borda) e `20260813030000` (`run_once`).
 > encontrou drift antes de nós. O registry de stages foi atualizado para os dois
 > funis; das 3 divergências originais restou 1, a do cron que morre na Etapa 7.
 
+### ✅ 13/08/2026 — Etapa 5 no ar, confirmada por comportamento
+
+O **Publish do Lovable não faz deploy das edge functions** — a tela
+Cloud → Edge functions mostrava "Last updated: 2 days ago" em todas, com os
+commits das Etapas 1–5 já na `main`. Foi preciso pedir ao agente do Lovable para
+publicar `pipeline-deterministic`, `pipeline-classify` e `automations-tick`.
+
+**Prova do deploy, em `pipeline_tick_stats`:**
+
+```
+15:15:04   candidates=25   moved=13   ← código novo
+15:00:07   candidates=0    moved=0
+14:45:04   candidates=0    moved=0
+```
+
+Todo tick anterior gravava `candidates=0` — era o bug `pa40`/`pa60`. Às 15:15 a
+regra nova contou 25 candidatos e **moveu 13** de *Qualificação* para
+*Sem Resposta*. Qualificação foi de 23 para 10; os números fecham.
+
+> 🔍 **Correção de método.** Em 12/08 eu tratei "uma linha em vez de duas" às
+> 23:45 como prova de deploy. Não era: a limpeza de duplicatas da migração 3
+> agrupa por segundo, e aquele par caiu no mesmo segundo — foi ela que o
+> colapsou. O par das 21:45 sobreviveu por estar em segundos diferentes
+> (`05.928` / `06.007`). **O sinal escolhido podia ser produzido pela própria
+> migração.** A lição: verificar deploy por um comportamento que só o código
+> novo produz — aqui, `candidates > 0` e o movimento para *Sem Resposta*, que a
+> versão antiga nunca fazia.
+
+**Consequência de ter rodado o Bloco B antes do deploy:** entre 23:20 de 12/08 e
+15:15 de 13/08 o código antigo rodou contra a topologia nova. Nesse intervalo,
+preencher a data **não convertia** — `resolveStageId` filtrava pelo funil do lead
+e devolvia `null` em silêncio.
+
+> 💡 `failure_reasons: {"clinic_not_allowlisted": 2}` no tick — a regra varre o
+> canônico `Qualificação` em **toda a base**, e outras clínicas também têm essa
+> coluna. O gate de allowlist barrou as 2 corretamente, mas confirma o padrão: o
+> que protege os outros tenants é um gate, não o escopo da regra.
+
 ### Estado operacional em 13/08
 
 **Todas as automações e sequências estão desligadas** — decisão do cliente durante
