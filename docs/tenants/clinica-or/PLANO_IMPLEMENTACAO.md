@@ -76,16 +76,19 @@ Confirma a ordem: **migrar com os vínculos desligados**, ligar depois.
 > inserir, mas **não há restrição de unicidade no banco** — mesmo padrão de
 > duplicação de `lead_stage_history`. Vale unificar.
 
-### 1.3 🔴 Os DOIS sweeps mensais estão ativos, no mesmo minuto
+### 1.3 ✅ Os DOIS sweeps mensais estão ativos, no mesmo minuto — RESOLVIDO 13/08
 
 ```
-pipeline-monthly-cycle-or-day1          0 3 1 * *   ATIVO
-pipeline-monthly-sweep-paciente-antigo  0 3 1 * *   ATIVO
+pipeline-monthly-cycle-or-day1          0 3 1 * *   ATIVO    → não existe mais
+pipeline-monthly-sweep-paciente-antigo  0 3 1 * *   ATIVO    → não existe mais
 ```
 
-Ambos movem para *Paciente antigo* no dia 1º às 03:00. O primeiro está gateado por
-`automation.or_monthly_cycle.enabled`, que **não existe no banco** — logo roda e não
-faz nada, mas continua agendado. **Os dois precisam ser desligados.**
+Ambos moviam para *Paciente antigo* no dia 1º às 03:00. O primeiro estava gateado
+por `automation.or_monthly_cycle.enabled`, que **não existia no banco** — rodava e
+não fazia nada, mas continuava agendado.
+
+Estado em 13/08 18:51: o inventário de `cron.job` não traz nenhum dos dois. Ver
+Etapa 7, item 29.
 
 ### 1.4 A distribuição real dos 1914 leads
 
@@ -328,6 +331,45 @@ e devolvia `null` em silêncio.
 > coluna. O gate de allowlist barrou as 2 corretamente, mas confirma o padrão: o
 > que protege os outros tenants é um gate, não o escopo da regra.
 
+### ✅ 13/08/2026 — Etapa 7 no ar, e o gatilho de wake-up removido
+
+Deploy pedido ao agente do Lovable (o botão *Publish* republica só o site — as
+edge functions ficam para trás). `Last updated` das três em **13/08 18:31 UTC**:
+`pipeline-deterministic`, `pipeline-classify`, `outreach-recovery-tick`.
+`pipeline-monthly-cycle-or` saiu do backend.
+
+**Confirmação por comportamento, não por relato.** O sinal específico desta leva é
+`ruleReactivationInbound` passando a atender *Sem Resposta* — antes esse movimento
+só existia no trigger SQL e era gravado como `system`:
+
+```
+Sem resposta → Qualificação   18:37:02   source = auto:reactivation-inbound
+```
+
+Seis minutos depois do deploy, e **nenhuma linha `system`** no período. Só então o
+gatilho antigo foi removido:
+
+```sql
+DROP TRIGGER IF EXISTS trg_clinica_or_wakeup_inbound ON public.messages;
+DROP FUNCTION IF EXISTS public.fn_clinica_or_wakeup_inbound();
+```
+
+Teste refeito depois do `DROP` — o lead voltou para *Qualificação* pelo caminho do
+código. A ordem importava: os dois conviviam sem problema, mas remover o antigo
+antes de provar o novo deixaria lead respondido parado na geladeira, invisível.
+
+**Também em 13/08:** `automation.followup_7d_nutricao.enabled` apagado de
+`app_settings` (botão sem código atrás). O inventário de `cron.job` mostrou que o
+`app_settings` tem só **5 chaves** — as outras 15 da lista de descarte nunca
+existiram no banco, eram default no código.
+
+> **Inventário de `cron.job` (13/08 18:51) — 30 jobs ativos.** Os três que chamam
+> `pipeline-deterministic` apontam para ações que **continuam existindo** depois da
+> reescrita: `inactivity-tick` (*/15), `reactivation-tick` (0 7) e
+> `human-reactor-tick` (0 8). Nenhum cron órfão.
+
+---
+
 ### Estado operacional em 13/08
 
 **Todas as automações e sequências estão desligadas** — decisão do cliente durante
@@ -476,12 +518,16 @@ numa travessia não declarada.
     muda) e `"Nutrição de Leads Inativos"` (que não existe)
 27. **D15 — desativar o tipo `retorno`** ✅ *(decidido 12/08)*
 28. Remover `modalidade_preferida` do schema da IA
-29. **Remover os dois sweeps mensais** ⏰ *(decidido 12/08 — sem urgência, mas
-    **antes de 01/09**)*
+29. **Remover os dois sweeps mensais** ✅ *(concluído 13/08)*
     - Cron `pipeline-monthly-cycle-or-day1` + a função `pipeline-monthly-cycle-or`
     - Cron `pipeline-monthly-sweep-paciente-antigo` + `ruleMonthlySweep`
-    - **Prazo:** ambos disparam `0 3 1 * *`. Se sobreviverem a 01/09, movem os
-      finalizados para Paciente antigo no meio da transição
+    - `cron.unschedule` retornou `could not find valid entry for job` para o
+      primeiro; o `SELECT * FROM cron.job` de 13/08 18:51 confirmou que **nenhum
+      dos dois existe mais**. O código dos dois já tinha saído (função deletada na
+      Etapa 7, `ruleMonthlySweep` na Etapa 5). Nada a desagendar.
+    - O `case "monthly-sweep-tick"` em `pipeline-deterministic` continua como stub
+      inofensivo — sem cron chamando, é código morto que pode sair numa limpeza
+      futura.
 
 ---
 
