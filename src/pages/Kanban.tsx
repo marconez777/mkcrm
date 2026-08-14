@@ -294,6 +294,9 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
     if (k.startsWith("pipeline-classifier:")) return false;
     // redundância com chips de qualif/proc/pag/agenda
     if (k === "interesse" && qualif === "interessado") return false;
+    // Mantido com `tentouPag` de propósito mesmo sem o chip "Comprovante": o pedido
+    // foi desligar o aviso, e deixar o motivo `pagamento` reaparecer só trocaria um
+    // chip por outro dizendo a mesma coisa.
     if (k === "pagamento" && (pago || tentouPag)) return false;
     if (k === "agendamento" && (agendou || consultaDate || procedimentoDate)) return false;
     if (shownProcKey && (k === shownProcKey || k === `procedimento:${proc}`)) return false;
@@ -325,7 +328,9 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const visibleTags = compact ? tags.slice(0, 2) : tags.slice(0, 4);
 
   if (
-    !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate && !procedimentoDate &&
+    // `tentouPag` saiu daqui junto com o chip: sozinho ele não rende mais nada
+    // visível, e mantê-lo faria a faixa de chips renderizar vazia.
+    !qualif && !proc && !pago && !agendou && !consultaDate && !procedimentoDate &&
     !pending && reasons.length === 0 && !originLabel && tags.length === 0
   ) return null;
 
@@ -346,7 +351,11 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
       {qualif === "em_negociacao" && <Chip tone="warning">{t("kanban.tag.negotiation")}</Chip>}
       {proc && <Chip tone="neutral">{REASON_LABEL[`proc_${proc}`] ?? proc}</Chip>}
       {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>{t("kanban.tag.paid")}</Chip>}
-      {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>{t("kanban.tag.proof")}</Chip>}
+      {/* Chip "Comprovante" (`!pago && tentouPag`) desligado a pedido do cliente em
+          14/08/2026. O campo `custom_fields.tentou_pagamento` continua sendo
+          preenchido normalmente e o chip verde "Pago" continua aparecendo — aqui só
+          deixou de existir o aviso intermediário. Para religar, basta devolver a
+          linha; nada mais depende dela. */}
       {procedimentoDate && (
         <Chip tone="success" icon={<CalendarClock className="h-3 w-3" />}>
           {t("kanban.tag.procedure", { date: fmt(procedimentoDate) })}
