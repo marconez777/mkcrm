@@ -865,7 +865,7 @@
       "listHint": "O lead é sempre adicionado à lista \"Leads Site\". Aqui você escolhe uma lista extra opcional.",
       "tags": "Tags deste formulário",
       "tagsPh": "Teste PHQ-9",
-      "tagsHint": "Viram chips no card do kanban. Somam-se às tags padrão da integração — se você quer uma tag diferente por formulário, deixe a da integração vazia.",
+      "tagsHint": "Viram chips no card do kanban. Somam-se às tags padrão da integração — se você quer uma tag diferente por formulário, deixe a da integração vazia. Escreva com espaços: tags com _ ou : são tratadas como internas e não viram chip.",
       "fieldMap": "Mapeamento de campos (JSON)",
       "fieldMapHint": "Ex.: {\"name\":\"your-name\",\"email\":\"your-email\",\"phone\":\"tel-123\"}. Deixe vazio para auto-detecção.",
       "active": "Ativo",

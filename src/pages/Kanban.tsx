@@ -306,10 +306,17 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const originLabel = originLabelOf(lead);
 
   // Tags do lead — rótulo posto por gente ou por configuração (ex.: `default_tags`
-  // do formulário do site), não pela IA. Aparecem primeiro e com tom próprio para
-  // não se confundirem com os motivos do classificador. Sem catálogo fixo aqui: o
-  // texto é o que o tenant escreveu.
+  // do formulário do site). Aparecem primeiro e com tom próprio para não se
+  // confundirem com os motivos do classificador. Sem catálogo fixo: o texto é o
+  // que o tenant escreveu.
+  //
+  // `leads.tags` é usado também como mecânica interna — vinculo de segmento de
+  // e-mail (`segmento_nutricao_leads`), espelho de coluna (`nutricao_inativa`),
+  // marcador de migração (`audit:b22`). Um lead da ÓR carrega 5 dessas. Mostrar
+  // tudo encheria o card de ruído, então só entram tags em forma de rótulo: sem
+  // `_` (snake_case é convenção de máquina aqui) e sem `:` (namespace interno).
   const tags = (lead.tags ?? []).filter((tg) => {
+    if (tg.includes("_") || tg.includes(":")) return false;
     const k = tg.toLowerCase();
     if (HIDDEN_REASONS.has(k)) return false;
     // já renderizada como chip próprio logo abaixo
