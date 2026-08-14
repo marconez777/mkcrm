@@ -41,6 +41,7 @@ type Definition = {
   last_submission_at: string | null;
   default_pipeline_stage_id: string | null;
   default_email_segment_id: string | null;
+  default_tags: string[] | null;
 };
 type Submission = {
   id: string;
@@ -492,6 +493,7 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
   const [active, setActive] = useState(def.active);
   const [stageId, setStageId] = useState<string>(def.default_pipeline_stage_id ?? "");
   const [segmentId, setSegmentId] = useState<string>(def.default_email_segment_id ?? "");
+  const [defTags, setDefTags] = useState((def.default_tags || []).join(", "));
   const [stages, setStages] = useState<StageOpt[]>([]);
   const [segments, setSegments] = useState<SegmentOpt[]>([]);
   const [busy, setBusy] = useState(false);
@@ -531,6 +533,7 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
           active,
           default_pipeline_stage_id: stageId || null,
           default_email_segment_id: segmentId || null,
+          default_tags: defTags.split(",").map((s) => s.trim()).filter(Boolean),
         },
       });
       if (error) throw error;
@@ -578,6 +581,17 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
               ))}
             </select>
             <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.listHint")}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t("settingsForms.defEditor.tags")}</Label>
+            <Input
+              value={defTags}
+              onChange={(e) => setDefTags(e.target.value)}
+              placeholder={t("settingsForms.defEditor.tagsPh")}
+              disabled={!canManage}
+            />
+            <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.tagsHint")}</p>
           </div>
 
           <div className="space-y-1.5">
