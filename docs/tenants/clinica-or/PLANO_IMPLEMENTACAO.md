@@ -391,8 +391,73 @@ Ordem de religamento acordada:
 
 - A cadência de *Paciente Inativo* tem **1 passo** e a de *Nutrição Antigos*, **0**
 - *ÓR — Nutrição Antigos* está vinculada à coluna morta — apagar ou repontar
+  *(resolvido: a sequência não existe mais no levantamento de 14/08)*
 - Pesquisa de procedimento disparava da coluna de **consulta**; corrigida por `UPDATE`
 - Lembretes 24h/1h **não existem** para tratamento, só para consulta
+
+---
+
+### 🔴 14/08/2026 — `ÓR — Reativação Paciente Antigo` dispararia para todo lead novo
+
+A sequência está com `trigger_type = 'pipeline_enter'` e
+`trigger_config = {stage_id: 7fea97d7…, pipeline_id: 17c27f4d…}`. Parece apontar
+para *Paciente Inativo*. Não aponta — e por dois motivos que se somam.
+
+**1. O gatilho ignora o `stage_id`.** A função de matrícula
+(`20260528182916_…sql`) compara só o pipeline:
+
+```sql
+(trigger_type = 'pipeline_enter' AND pipeline_changed
+ AND (trigger_config->>'pipeline_id')::uuid = new_pipeline_id)
+```
+
+**2. E em INSERT tudo é considerado mudança:**
+
+```sql
+IF TG_OP = 'INSERT' THEN
+  stage_changed := true;
+  pipeline_changed := true;
+```
+
+`17c27f4d` é o **Vendas**. Logo, ligar a sequência matricularia *todo lead criado
+no Vendas* — inclusive quem acabou de mandar a primeira mensagem no WhatsApp — na
+cadência de "sentimos sua falta", mais todo lead que atravessasse de Pacientes
+para Vendas numa conversão.
+
+**3. E o alvo está no outro funil.** Confirmado em 14/08: *Paciente Inativo*
+(`7fea97d7`) pertence a **Clínica ÓR — Pacientes**; *Nutrição Inativa*
+(`64356dbe`) pertence a **Clínica ÓR — Vendas**. Mesmo que o gatilho lesse o
+`stage_id`, ele está escutando o funil errado.
+
+Nunca disparou porque está `enabled = false`. Correção: trocar para
+`stage_enter` apontando para *Paciente Inativo*, pela tela de Sequências — que
+lista as colunas de todos os funis, não só o de vendas padrão. Como o gatilho é
+por `INSERT`/`UPDATE` de `stage_id`, os 612 leads já parados em Paciente Inativo
+**não** são matriculados retroativamente; só quem entrar depois.
+
+> `ÓR — Nutrição Leads`, em contraste, está correta: `stage_enter` em `64356dbe`,
+> 4 passos com conteúdo, `stop_on_reply` ligado, cooldown de 30 dias. Faltam só a
+> instância de envio e o `enabled`.
+
+---
+
+### 14/08/2026 — Instância de WhatsApp por automação
+
+`evolution-send` lê só `leads.whatsapp_instance_id`. Sequência já contornava isso
+(`message_sequences.whatsapp_instance_id` + patch no `sequence-tick`); automação
+não tinha equivalente, e por isso a `ÓR — Pesquisa de Satisfação (Consulta)`
+falhou em 14/08 15:10 com `Nenhuma instância WhatsApp configurada` — no mesmo
+minuto em que um lembrete saía normalmente para outro lead.
+
+Na ÓR são **1.488 leads sem instância**, sendo 774 em Nutrição Inativa (79% da
+coluna) e 414 em Paciente Inativo. A coluna *Sem resposta* não tem nenhum.
+
+Resolvido em `6c410a69`: coluna `automations.whatsapp_instance_id` + seletor na
+tela + patch no `automations-tick` com o mesmo `.is(…, null)` do `sequence-tick`,
+que nunca sobrescreve vínculo existente.
+
+> **Não fazer `UPDATE` em massa nos 1.488.** O patch por envio resolve lead a lead,
+> só para quem realmente entra numa cadência, e preserva quem já tem número.
 
 ---
 
