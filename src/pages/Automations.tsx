@@ -23,6 +23,7 @@ type Automation = {
   action_type: string;
   action_config: any;
   cooldown_hours: number;
+  whatsapp_instance_id: string | null;
 };
 
 const TRIGGERS = [
@@ -48,21 +49,24 @@ export default function Automations() {
   const [running, setRunning] = useState(false);
   const [dateFields, setDateFields] = useState<any[]>([]);
   const [allFields, setAllFields] = useState<any[]>([]);
+  const [instances, setInstances] = useState<any[]>([]);
   const confirm = useConfirm();
 
   const load = async () => {
-    const [a, { data: ag }, { data: st }, { data: tp }, { data: cf }] = await Promise.all([
+    const [a, { data: ag }, { data: st }, { data: tp }, { data: cf }, { data: wi }] = await Promise.all([
       fetchAllPaged<any>(() => supabase.from("automations").select("*").order("created_at")),
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name, pipelines!inner(is_default, kind)").eq("pipelines.is_default", true).eq("pipelines.kind", "sales").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
       supabase.from("lead_custom_fields").select("field_key, label, field_type, options").order("position"),
+      supabase.from("whatsapp_instances").select("id, name, is_default"),
     ]);
     setList(a as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
     setTemplates(tp ?? []);
     setAllFields(cf ?? []);
+    setInstances(wi ?? []);
     setDateFields((cf ?? []).filter((f: any) => f.field_type === "date" || f.field_type === "datetime"));
   };
 
@@ -136,6 +140,7 @@ export default function Automations() {
         action_type: selected.action_type,
         action_config: selected.action_config,
         cooldown_hours: selected.cooldown_hours,
+        whatsapp_instance_id: selected.whatsapp_instance_id,
       })
       .eq("id", selected.id);
     if (error) return toast.error(error.message);
@@ -265,6 +270,23 @@ export default function Automations() {
                 <Label>Cooldown (horas) — não dispara mais de uma vez no mesmo lead nesse período</Label>
                 <Input type="number" min="1" value={selected.cooldown_hours}
                   onChange={(e) => setSelected({ ...selected, cooldown_hours: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label>WhatsApp para envio</Label>
+                <select
+                  className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                  value={selected.whatsapp_instance_id ?? ""}
+                  onChange={(e) => setSelected({ ...selected, whatsapp_instance_id: e.target.value || null })}>
+                  <option value="">— usar instância padrão do lead —</option>
+                  {instances.map((i) => (
+                    <option key={i.id} value={i.id}>{i.name}{i.is_default ? " (padrão)" : ""}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Lead que nunca escreveu no WhatsApp não tem instância e o envio falha.
+                  Escolhendo uma aqui, ela é gravada no lead na hora do envio — só se ele
+                  ainda não tiver, nunca troca a de quem já conversa por outro número.
+                </p>
               </div>
             </Card>
 

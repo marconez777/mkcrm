@@ -17,7 +17,26 @@ type Automation = {
   cooldown_hours: number;
   /** Uma vez por lead, para sempre — ignora a janela de cooldown. */
   run_once?: boolean;
+  /** Instância de envio escolhida na tela. NULL = usa a do lead. */
+  whatsapp_instance_id?: string | null;
 };
+
+/**
+ * Garante que o lead tenha instância antes do envio.
+ *
+ * O `evolution-send` lê só `leads.whatsapp_instance_id`; nulo vira
+ * "Nenhuma instância WhatsApp configurada". Mesma semântica do `sequence-tick`:
+ * o filtro `.is(..., null)` faz o patch valer só para quem ainda não tem vínculo,
+ * então nunca troca a instância de um lead que já conversa por outro número.
+ */
+async function ensureLeadInstance(supabase: any, a: Automation, leadId: string) {
+  if (!a.whatsapp_instance_id) return;
+  await supabase
+    .from("leads")
+    .update({ whatsapp_instance_id: a.whatsapp_instance_id })
+    .eq("id", leadId)
+    .is("whatsapp_instance_id", null);
+}
 
 /** Teto de tentativas quando `run_once` está ligado — ver comentário abaixo. */
 const RUN_ONCE_MAX_TENTATIVAS = 3;
@@ -358,6 +377,7 @@ async function runAction(supabase: any, a: Automation, leadId: string, appointme
       return { ok: false, detail: `ai-chat ${resp.status}: ${body}` };
     }
 
+    await ensureLeadInstance(supabase, a, leadId);
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",
       headers: {
@@ -420,6 +440,7 @@ async function runAction(supabase: any, a: Automation, leadId: string, appointme
     const clinicTz = await getClinicTimezone(supabase, a.clinic_id);
     const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any, clinicTz, { appointment_at: appointmentAt ?? undefined });
 
+    await ensureLeadInstance(supabase, a, leadId);
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",
       headers: {
