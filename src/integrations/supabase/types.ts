@@ -1574,6 +1574,7 @@ export type Database = {
           trigger_config: Json
           trigger_type: string
           updated_at: string
+          whatsapp_instance_id: string | null
         }
         Insert: {
           action_config?: Json
@@ -1589,6 +1590,7 @@ export type Database = {
           trigger_config?: Json
           trigger_type: string
           updated_at?: string
+          whatsapp_instance_id?: string | null
         }
         Update: {
           action_config?: Json
@@ -1604,6 +1606,7 @@ export type Database = {
           trigger_config?: Json
           trigger_type?: string
           updated_at?: string
+          whatsapp_instance_id?: string | null
         }
         Relationships: [
           {
@@ -1611,6 +1614,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automations_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
         ]
