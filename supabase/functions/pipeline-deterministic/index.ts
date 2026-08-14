@@ -207,10 +207,19 @@ async function ruleNovoLead(client: SupabaseClient, leadId: string) {
   }
   const { data: lead } = await client
     .from("leads")
-    .select("id, clinic_id, pipeline_id, stage_id")
+    .select("id, clinic_id, pipeline_id, stage_id, form_source")
     .eq("id", leadId)
     .single();
   if (!lead?.pipeline_id) return { skipped: "no_pipeline" };
+
+  // Lead de formulário do site já nasce na etapa que `forms-ingest` resolveu
+  // (etapa do formulário → etapa da integração → primeira coluna /nutri/i).
+  // Sem esta guarda o AFTER INSERT desfazia essa escolha em segundos: o lead
+  // caía em Nutrição Inativa e era arrastado para "Novo" sem nenhuma mensagem,
+  // sem nenhuma interação. Quem cria o lead decide onde ele entra.
+  if (lead.form_source) {
+    return { skipped: "created_by_form", form_source: lead.form_source };
+  }
 
   const novoId = await resolveStageId(
     client,

@@ -33,7 +33,7 @@ import { customFieldsPatchForStage } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
 import { originLabelOf } from "@/lib/lead-origin";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon, Download, Compass } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon, Download, Compass, Tag } from "lucide-react";
 import { downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -224,6 +224,8 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
     a.needs_ai_review === b.needs_ai_review &&
     
     JSON.stringify(a.ai_review_reasons ?? []) === JSON.stringify(b.ai_review_reasons ?? []) &&
+    // tags viraram chip no card — sem isto o memo segura o card com a tag antiga
+    JSON.stringify(a.tags ?? []) === JSON.stringify(b.tags ?? []) &&
     JSON.stringify(a.custom_fields ?? {}) === JSON.stringify(b.custom_fields ?? {})
   );
 });
@@ -303,9 +305,21 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
 
   const originLabel = originLabelOf(lead);
 
+  // Tags do lead — rótulo posto por gente ou por configuração (ex.: `default_tags`
+  // do formulário do site), não pela IA. Aparecem primeiro e com tom próprio para
+  // não se confundirem com os motivos do classificador. Sem catálogo fixo aqui: o
+  // texto é o que o tenant escreveu.
+  const tags = (lead.tags ?? []).filter((tg) => {
+    const k = tg.toLowerCase();
+    if (HIDDEN_REASONS.has(k)) return false;
+    // já renderizada como chip próprio logo abaixo
+    return !(shownProcKey && k === shownProcKey);
+  });
+  const visibleTags = compact ? tags.slice(0, 2) : tags.slice(0, 4);
+
   if (
     !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate && !procedimentoDate &&
-    !pending && reasons.length === 0 && !originLabel
+    !pending && reasons.length === 0 && !originLabel && tags.length === 0
   ) return null;
 
   const fmt = (d: Date) => d.toLocaleDateString(i18n.language, { day: "2-digit", month: "2-digit" });
@@ -315,6 +329,9 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
       {originLabel && (
         <Chip tone="muted" icon={<Compass className="h-3 w-3" />}>{originLabel}</Chip>
       )}
+      {visibleTags.map((tg) => (
+        <Chip key={`tag:${tg}`} tone="neutral" icon={<Tag className="h-3 w-3" />}>{tg}</Chip>
+      ))}
       {qualif === "desqualificado" && (
         <Chip tone="danger" icon={<AlertTriangle className="h-3 w-3" />}>{t("kanban.tag.disqualified")}</Chip>
       )}
