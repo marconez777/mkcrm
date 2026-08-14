@@ -27,6 +27,22 @@ decidido pelo cliente em 11/08/2026.
 **Princípio:** movimentação **100% por gatilho**. A IA não move card — o código que
 faz isso será **removido**, não desligado.
 
+> ### 📛 Este documento usa nomes CANÔNICOS, não o rótulo da tela
+>
+> Toda vez que aqui se lê **Reagendamento**, no Kanban está escrito
+> **"Paciente Ativo"** — renomeada pelo cliente em 14/08/2026. **É a mesma coluna,
+> mesmo `stage_id`, mesmo comportamento**: continua sendo para onde vai quem faltou,
+> cancelou, teve a data apagada ou voltou a escrever depois de finalizado.
+>
+> Nada quebrou porque as regras procuram o alias canônico
+> (`stage_canonical_aliases`), nunca o texto da coluna. É exatamente para isso que o
+> alias existe — o cliente pode renomear quando quiser.
+>
+> **Não saia trocando os nomes deste documento a cada renomeação.** Quem lê código
+> precisa da canônica; quem abre o Kanban precisa do mapa acima. Foi ler nome de
+> tela como se fosse referência de código que produziu o erro da `Nutrição Antigos`
+> em 12/08 — ver PLANO_IMPLEMENTACAO §2b.
+
 ---
 
 ## 1. Visão geral
@@ -120,8 +136,10 @@ Coluna de apoio. **Sem automação e fora do contador de inatividade.**
   - paciente escreve → *Reagendamento* **(automático)**
   - **60 dias** na coluna → *Paciente Inativo*
 
-### 2.5 Reagendamento *(nova)*
+### 2.5 Reagendamento *(nova)* — na tela: **"Paciente Ativo"**
 A coluna de trabalho do P2 — equivalente de Qualificação.
+
+> Renomeada em 14/08/2026. Só o rótulo: o fluxo abaixo vale integralmente.
 
 - **Entra:** data apagada em Agendada · paciente escreve estando em Finalizada ·
   paciente responde estando em Paciente Inativo

@@ -397,6 +397,26 @@ Ordem de religamento acordada:
 
 ---
 
+### ✅ 14/08/2026 — *Reagendamento* virou *"Paciente Ativo"* na tela
+
+O cliente renomeou a coluna. **Mesma coluna, mesmo `stage_id`, mesmo fluxo** — só o
+rótulo. Nenhuma linha de código mudou, e não devia mesmo: as regras resolvem por
+`stage_canonical_aliases`, não por nome.
+
+Continuam apontando para ela, agora sob o rótulo novo: `faltou`/`cancelado` no
+`appointment-sync`, a regra de data apagada, `ruleReactivationInbound` (retorno de
+Finalizada e de Paciente Inativo) e as travessias de todas as colunas do Vendas.
+
+> É a primeira vez que o desacoplamento nome-vs-canônica foi exercitado em produção
+> e ele funcionou. Vale como evidência de que renomear coluna é operação segura
+> neste tenant — o oposto do que acontecia antes, quando comparação por nome fez a
+> IA rebaixar 5 pacientes ao renomear *Tratamento Ativo*.
+
+**Neste plano e no FLUXO_ALVO os nomes seguem canônicos.** A tradução para o rótulo
+de tela está no topo do FLUXO_ALVO.
+
+---
+
 ### 🔴 14/08/2026 — `ÓR — Reativação Paciente Antigo` dispararia para todo lead novo
 
 A sequência está com `trigger_type = 'pipeline_enter'` e
