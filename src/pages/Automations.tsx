@@ -216,17 +216,17 @@ export default function Automations() {
               <button
                 key={a.id}
                 onClick={() => setSelected(a)}
-                className={`relative mb-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${
+                className={`relative mb-0.5 flex w-full items-start gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${
                   isActive ? "bg-muted" : "hover:bg-muted/40"
                 }`}
               >
                 {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />}
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={avatarStyle}>
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={avatarStyle}>
                   {initials}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
-                  <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                  <p className="break-words text-sm font-medium leading-snug text-foreground">{a.name}</p>
+                  <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.enabled ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
                     {trigLabel}
                   </p>
@@ -256,13 +256,13 @@ export default function Automations() {
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <Input
-                className="h-9 w-72 font-semibold"
+                className="h-9 min-w-0 flex-1 font-semibold"
                 value={selected.name}
                 onChange={(e) => setSelected({ ...selected, name: e.target.value })}
               />
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
