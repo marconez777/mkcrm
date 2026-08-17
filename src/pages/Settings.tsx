@@ -291,15 +291,10 @@ export default function SettingsPage() {
                           </div>
                           {expired && (
                             <div className="mt-2 text-xs text-red-700">
-                              <span dangerouslySetInnerHTML={{ __html: t("settings.wa.expiredHelp", { action: open ? t("settings.wa.manage") : t("settings.wa.scanQr") }) }} />
+                              <span dangerouslySetInnerHTML={{ __html: t("settings.wa.expiredHelp") }} />
                             </div>
                           )}
                         </div>
-                        {expired && canManage && (
-                          <Button variant="destructive" size="sm" onClick={() => setQrFor(inst)}>
-                            <QrCode className="mr-2 h-3 w-3" /> {t("settings.wa.rescan")}
-                          </Button>
-                        )}
                         {!expired && stuck && canManage && (
                           <Button variant="default" size="sm" onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
                             <RefreshCw className={`mr-2 h-3 w-3 ${healingId === inst.id ? "animate-spin" : ""}`} /> {t("settings.wa.recover")}

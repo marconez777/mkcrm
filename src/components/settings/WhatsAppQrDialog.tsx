@@ -26,6 +26,9 @@ export function WhatsAppQrDialog({ open, onOpenChange, instanceId, instanceName 
   const [loading, setLoading] = useState(false);
   const [acting, setActing] = useState<null | "logout" | "restart">(null);
   const pollRef = useRef<number | null>(null);
+  // Só fecha com "conectado!" se a sessão esteve desconectada neste diálogo —
+  // sessão fantasma reporta "open" direto e fechava o diálogo sem parear nada.
+  const sawNotOpenRef = useRef(false);
   const { confirm } = useDialogs();
 
   async function fetchQr(showLoading = true) {
@@ -40,7 +43,8 @@ export function WhatsAppQrDialog({ open, onOpenChange, instanceId, instanceName 
     }
     const d = resp as QrResp;
     setData(d);
-    if (d.state === "open" && open) {
+    if (d.state !== "open") sawNotOpenRef.current = true;
+    if (d.state === "open" && open && sawNotOpenRef.current) {
       toast.success("WhatsApp conectado!");
       supabase.functions.invoke("evolution-health").catch(() => {});
       onOpenChange(false);
@@ -49,6 +53,7 @@ export function WhatsAppQrDialog({ open, onOpenChange, instanceId, instanceName 
 
   useEffect(() => {
     if (!open) return;
+    sawNotOpenRef.current = false;
     fetchQr(true);
     pollRef.current = window.setInterval(() => fetchQr(false), 5000);
     return () => {
