@@ -754,7 +754,144 @@
       "status": "Status",
       "noName": "(sem nome)",
       "loading": "Carregando…",
-      "empty": "Nada por aqui."
+      "empty": "Nada por aqui.",
+      "view": "Ver detalhes"
+    },
+    "dialog": {
+      "title": "Detalhes do envio",
+      "origin": "Origem",
+      "status": "Status",
+      "when": "Data e hora",
+      "lead": "Lead",
+      "content": "Conteúdo",
+      "sentContent": "Conteúdo enviado",
+      "howToFix": "Como resolver",
+      "technical": "Detalhes técnicos (para suporte)",
+      "refId": "ID de referência",
+      "copy": "Copiar",
+      "copied": "Copiado para a área de transferência",
+      "openLead": "Abrir conversa",
+      "goToSettings": "Abrir Configurações",
+      "goToAutomations": "Abrir Automações",
+      "goToSequences": "Abrir Sequências",
+      "close": "Fechar"
+    },
+    "errors": {
+      "noInstance": {
+        "title": "WhatsApp não conectado",
+        "explain": "A mensagem não pôde ser enviada porque nenhum número de WhatsApp está conectado ao sistema para esta empresa.",
+        "fix": "Acesse Configurações → WhatsApp e conecte um número escaneando o QR Code. Depois disso, os próximos envios voltam a sair normalmente."
+      },
+      "instanceDisconnected": {
+        "title": "WhatsApp desconectado",
+        "explain": "O número de WhatsApp da empresa estava desconectado na hora do envio (por exemplo, o celular ficou sem internet ou a sessão caiu).",
+        "fix": "Acesse Configurações → WhatsApp e reconecte o número escaneando o QR Code novamente."
+      },
+      "connectionClosed": {
+        "title": "Conexão com o WhatsApp caiu",
+        "explain": "A conexão com o WhatsApp caiu bem na hora do envio. Costuma ser uma instabilidade passageira.",
+        "fix": "Verifique em Configurações → WhatsApp se o número aparece como conectado. Se estiver, tente reenviar; se o problema se repetir, reconecte o número."
+      },
+      "numberInvalid": {
+        "title": "Número sem WhatsApp",
+        "explain": "O telefone deste lead parece não ter uma conta de WhatsApp ativa, ou está incorreto (faltando DDD, dígito, etc.).",
+        "fix": "Confira o telefone no cadastro do lead, corrija se necessário (com DDD e código do país) e tente novamente."
+      },
+      "aiQuota": {
+        "title": "IA sem créditos",
+        "explain": "A inteligência artificial não conseguiu gerar a mensagem porque os créditos ou o limite de uso do provedor de IA acabaram.",
+        "fix": "Verifique a assinatura ou os créditos do provedor de IA (OpenAI/Gemini) da empresa e recarregue se necessário."
+      },
+      "aiKeyInvalid": {
+        "title": "Chave da IA inválida",
+        "explain": "A chave de acesso ao provedor de IA está incorreta, expirada ou foi revogada — por isso a mensagem não pôde ser gerada.",
+        "fix": "Atualize a chave da IA nas configurações de IA da empresa."
+      },
+      "aiFailed": {
+        "title": "Falha ao gerar resposta da IA",
+        "explain": "O serviço de inteligência artificial não conseguiu gerar o texto da mensagem desta vez.",
+        "fix": "Costuma ser temporário. Se continuar acontecendo, revise as configurações do agente de IA ou fale com o suporte."
+      },
+      "missingAgent": {
+        "title": "Automação sem agente de IA",
+        "explain": "Esta automação está configurada para usar um agente de IA, mas nenhum agente foi selecionado nela.",
+        "fix": "Abra a automação, selecione qual agente de IA deve responder e salve. Os próximos disparos funcionarão."
+      },
+      "stageMissing": {
+        "title": "Automação sem etapa definida",
+        "explain": "Esta automação deveria mover o lead para uma etapa do pipeline, mas a etapa não foi definida (ou foi excluída).",
+        "fix": "Abra a automação e escolha novamente a etapa de destino."
+      },
+      "templateMissing": {
+        "title": "Template não encontrado",
+        "explain": "O modelo de mensagem (template) usado aqui não foi definido ou foi excluído.",
+        "fix": "Abra a automação ou sequência e selecione um template válido."
+      },
+      "unknownAction": {
+        "title": "Ação não reconhecida",
+        "explain": "A automação contém uma ação que o sistema não reconhece — provavelmente uma configuração antiga ou incompleta.",
+        "fix": "Abra a automação, revise as ações configuradas e salve novamente. Se persistir, fale com o suporte."
+      },
+      "emptyContent": {
+        "title": "Mensagem vazia",
+        "explain": "Este passo foi pulado porque o texto da mensagem ficou vazio (por exemplo, um template sem conteúdo).",
+        "fix": "Edite o passo da sequência ou automação e preencha o texto da mensagem."
+      },
+      "sendUnconfirmed": {
+        "title": "Envio não confirmado",
+        "explain": "O WhatsApp recebeu o pedido, mas não confirmou que a mensagem saiu. Ela pode não ter chegado ao lead.",
+        "fix": "Abra a conversa do lead e confira se a mensagem aparece. Se não, reenvie manualmente. Se acontecer com frequência, reconecte o WhatsApp em Configurações."
+      },
+      "leadNotFound": {
+        "title": "Lead não encontrado",
+        "explain": "O contato desta mensagem não existe mais no sistema (pode ter sido excluído ou mesclado).",
+        "fix": "Nenhuma ação necessária. Se o lead ainda deveria existir, verifique com a equipe se ele foi excluído."
+      },
+      "rateLimited": {
+        "title": "Muitos envios em pouco tempo",
+        "explain": "O sistema tentou enviar mensagens rápido demais e o serviço pediu uma pausa (limite de velocidade).",
+        "fix": "Aguarde alguns minutos — os próximos envios tendem a normalizar. Evite disparos em massa muito grandes num curto período."
+      },
+      "networkIssue": {
+        "title": "Falha de conexão",
+        "explain": "Houve uma falha de rede entre o sistema e o serviço de envio no momento do disparo.",
+        "fix": "Costuma ser passageiro. Se novas falhas aparecerem, verifique a conexão do WhatsApp em Configurações ou fale com o suporte."
+      },
+      "sendRetriesExhausted": {
+        "title": "Falha no envio após várias tentativas",
+        "explain": "O sistema tentou enviar a mensagem algumas vezes seguidas e não conseguiu.",
+        "fix": "Verifique em Configurações → WhatsApp se o número está conectado e reenvie pela conversa do lead."
+      },
+      "http401": {
+        "title": "Acesso negado pelo serviço",
+        "explain": "O serviço de envio recusou as credenciais do sistema — alguma parte da integração perdeu a autorização.",
+        "fix": "Fale com o suporte para revisar a integração. Normalmente é preciso reconfigurar a conexão."
+      },
+      "http404": {
+        "title": "Recurso não encontrado",
+        "explain": "Algo que o envio precisava (conversa, número ou registro) não foi encontrado pelo serviço.",
+        "fix": "Confira o cadastro do lead e a conexão do WhatsApp. Se persistir, fale com o suporte."
+      },
+      "http409": {
+        "title": "Conflito no envio",
+        "explain": "O serviço recusou o envio por um conflito de estado — geralmente o WhatsApp não estava pronto naquele momento.",
+        "fix": "Verifique a conexão do WhatsApp em Configurações e tente novamente."
+      },
+      "http4xx": {
+        "title": "Envio recusado",
+        "explain": "O serviço de envio recusou esta mensagem por um problema nos dados enviados.",
+        "fix": "Confira o telefone do lead e o conteúdo da mensagem. Se persistir, fale com o suporte informando os detalhes técnicos abaixo."
+      },
+      "http5xx": {
+        "title": "Instabilidade no serviço",
+        "explain": "O serviço de envio estava instável ou fora do ar no momento. A falha não foi causada por uma configuração sua.",
+        "fix": "Aguarde alguns minutos e tente de novo. Se persistir por horas, fale com o suporte."
+      },
+      "unknown": {
+        "title": "Erro técnico",
+        "explain": "Ocorreu um erro técnico não mapeado durante o processamento deste envio.",
+        "fix": "Tente novamente. Se persistir, envie os detalhes técnicos abaixo para o suporte."
+      }
     }
   },
   "settingsForms": {

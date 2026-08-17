@@ -11,25 +11,15 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Ban, CheckCircle2, Clock, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, Clock, Eye, RefreshCw, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useUpcomingQueue, useHistoryQueue, useQueueSummary,
   useAutomationsPaused, setAutomationsPaused, cancelQueueRow,
   type QueueRow,
 } from "@/hooks/useQueueData";
-
-function StatusBadge({ status }: { status: string }) {
-  const { t } = useTranslation();
-  const variants: Record<string, any> = {
-    pending: "secondary", sent: "default", success: "default",
-    failed: "destructive", error: "destructive",
-    skipped: "outline", cancelled: "outline",
-  };
-  const variant = variants[status] ?? "outline";
-  const label = t(`queueLogs.status.${status}`, { defaultValue: status });
-  return <Badge variant={variant}>{label}</Badge>;
-}
+import { QueueDetailDialog, StatusBadge } from "@/components/queue/QueueDetailDialog";
+import { explainQueueError } from "@/lib/queueErrorExplain";
 
 function StatCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone: string }) {
   const { i18n } = useTranslation();
@@ -54,9 +44,28 @@ function useFmtWhen() {
   };
 }
 
+function DetailCell({ row }: { row: QueueRow }) {
+  const { t } = useTranslation();
+  if (!row.detail) return <>{row.preview}</>;
+  const isErr = row.status === "failed" || row.status === "error";
+  const isWarn = row.status === "skipped" || row.status === "pending";
+  return (
+    <>
+      {row.preview}
+      {isErr || isWarn ? (
+        <div className={`mt-1 truncate ${isErr ? "text-destructive" : "text-amber-600 dark:text-amber-400"}`}>
+          {t(`queueLogs.errors.${explainQueueError(row.detail)}.title`)}
+        </div>
+      ) : (
+        <div className="mt-1 truncate">{row.detail}</div>
+      )}
+    </>
+  );
+}
+
 function QueueTable({
-  rows, isLoading, canCancel, onCancel,
-}: { rows: QueueRow[]; isLoading: boolean; canCancel: boolean; onCancel?: (r: QueueRow) => void }) {
+  rows, isLoading, canCancel, onCancel, onView,
+}: { rows: QueueRow[]; isLoading: boolean; canCancel: boolean; onCancel?: (r: QueueRow) => void; onView: (r: QueueRow) => void }) {
   const { t } = useTranslation();
   const fmtWhen = useFmtWhen();
   if (isLoading) return <div className="py-12 text-center text-sm text-muted-foreground">{t("queueLogs.table.loading")}</div>;
@@ -71,35 +80,44 @@ function QueueTable({
             <TableHead>{t("queueLogs.table.lead")}</TableHead>
             <TableHead className="hidden md:table-cell">{t("queueLogs.table.detail")}</TableHead>
             <TableHead className="w-[120px]">{t("queueLogs.table.status")}</TableHead>
-            {canCancel && <TableHead className="w-[80px]" />}
+            <TableHead className={canCancel ? "w-[110px]" : "w-[64px]"} />
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((r) => (
-            <TableRow key={r.id}>
+            <TableRow key={r.id} className="cursor-pointer" onClick={() => onView(r)}>
               <TableCell className="text-xs whitespace-nowrap">{fmtWhen(r.when)}</TableCell>
               <TableCell><Badge variant="outline">{t(`queueLogs.source.${r.source}`, { defaultValue: r.source })}</Badge></TableCell>
               <TableCell>
                 {r.leadId ? (
-                  <Link to={`/inbox/${r.leadId}`} className="text-primary hover:underline text-sm">
+                  <Link
+                    to={`/inbox/${r.leadId}`}
+                    className="text-primary hover:underline text-sm"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {r.leadName ?? t("queueLogs.table.noName")}
                   </Link>
                 ) : <span className="text-muted-foreground text-sm">—</span>}
               </TableCell>
               <TableCell className="hidden md:table-cell text-xs text-muted-foreground max-w-[420px] truncate">
-                {r.preview}
-                {r.detail && <div className="text-destructive mt-1 truncate">{r.detail}</div>}
+                <DetailCell row={r} />
               </TableCell>
               <TableCell><StatusBadge status={r.status} /></TableCell>
-              {canCancel && (
-                <TableCell className="text-right">
-                  {(r.source === "scheduled" || r.source === "reply" || r.source === "sequence") && (
-                    <Button size="sm" variant="ghost" onClick={() => onCancel?.(r)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </TableCell>
-              )}
+              <TableCell className="text-right whitespace-nowrap">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title={t("queueLogs.table.view")}
+                  onClick={(e) => { e.stopPropagation(); onView(r); }}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                {canCancel && (r.source === "scheduled" || r.source === "reply" || r.source === "sequence") && (
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onCancel?.(r); }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -133,6 +151,7 @@ export default function QueueLogs() {
   const [source, setSource] = useState("all");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<QueueRow | null>(null);
 
   const filters = { source, status, search };
   const upRows = useMemo(() => filterRows(upcoming.data ?? [], filters), [upcoming.data, source, status, search]);
@@ -239,17 +258,19 @@ export default function QueueLogs() {
               <TabsTrigger value="failures">{t("queueLogs.tab.failures")} ({failRows.length})</TabsTrigger>
             </TabsList>
             <TabsContent value="upcoming" className="mt-4">
-              <QueueTable rows={upRows} isLoading={upcoming.isLoading} canCancel onCancel={handleCancel} />
+              <QueueTable rows={upRows} isLoading={upcoming.isLoading} canCancel onCancel={handleCancel} onView={setSelected} />
             </TabsContent>
             <TabsContent value="history" className="mt-4">
-              <QueueTable rows={histRows} isLoading={history.isLoading} canCancel={false} />
+              <QueueTable rows={histRows} isLoading={history.isLoading} canCancel={false} onView={setSelected} />
             </TabsContent>
             <TabsContent value="failures" className="mt-4">
-              <QueueTable rows={failRows} isLoading={failures.isLoading} canCancel={false} />
+              <QueueTable rows={failRows} isLoading={failures.isLoading} canCancel={false} onView={setSelected} />
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      <QueueDetailDialog row={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

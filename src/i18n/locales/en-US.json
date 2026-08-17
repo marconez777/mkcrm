@@ -754,7 +754,144 @@
       "status": "Status",
       "noName": "(no name)",
       "loading": "Loading…",
-      "empty": "Nothing here."
+      "empty": "Nothing here.",
+      "view": "View details"
+    },
+    "dialog": {
+      "title": "Send details",
+      "origin": "Source",
+      "status": "Status",
+      "when": "Date & time",
+      "lead": "Lead",
+      "content": "Content",
+      "sentContent": "Sent content",
+      "howToFix": "How to fix it",
+      "technical": "Technical details (for support)",
+      "refId": "Reference ID",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "openLead": "Open conversation",
+      "goToSettings": "Open Settings",
+      "goToAutomations": "Open Automations",
+      "goToSequences": "Open Sequences",
+      "close": "Close"
+    },
+    "errors": {
+      "noInstance": {
+        "title": "WhatsApp not connected",
+        "explain": "The message couldn't be sent because no WhatsApp number is connected to the system for this company.",
+        "fix": "Go to Settings → WhatsApp and connect a number by scanning the QR code. After that, upcoming sends will go out normally."
+      },
+      "instanceDisconnected": {
+        "title": "WhatsApp disconnected",
+        "explain": "The company's WhatsApp number was disconnected at send time (for example, the phone lost internet or the session dropped).",
+        "fix": "Go to Settings → WhatsApp and reconnect the number by scanning the QR code again."
+      },
+      "connectionClosed": {
+        "title": "WhatsApp connection dropped",
+        "explain": "The connection to WhatsApp dropped right at send time. This is usually a temporary hiccup.",
+        "fix": "Check in Settings → WhatsApp that the number shows as connected. If it does, try sending again; if it keeps happening, reconnect the number."
+      },
+      "numberInvalid": {
+        "title": "Number has no WhatsApp",
+        "explain": "This lead's phone number doesn't seem to have an active WhatsApp account, or it's incorrect (missing area code, wrong digit, etc.).",
+        "fix": "Check the phone number on the lead's profile, fix it if needed (including country and area code) and try again."
+      },
+      "aiQuota": {
+        "title": "AI out of credits",
+        "explain": "The AI couldn't generate the message because the AI provider's credits or usage limit ran out.",
+        "fix": "Check the company's AI provider subscription or credits (OpenAI/Gemini) and top up if needed."
+      },
+      "aiKeyInvalid": {
+        "title": "Invalid AI key",
+        "explain": "The access key for the AI provider is wrong, expired or was revoked — so the message couldn't be generated.",
+        "fix": "Update the AI key in the company's AI settings."
+      },
+      "aiFailed": {
+        "title": "AI failed to generate a reply",
+        "explain": "The AI service couldn't generate the message text this time.",
+        "fix": "This is usually temporary. If it keeps happening, review the AI agent settings or contact support."
+      },
+      "missingAgent": {
+        "title": "Automation missing AI agent",
+        "explain": "This automation is set to use an AI agent, but no agent is selected.",
+        "fix": "Open the automation, choose which AI agent should reply and save. Upcoming runs will work."
+      },
+      "stageMissing": {
+        "title": "Automation missing stage",
+        "explain": "This automation should move the lead to a pipeline stage, but the stage isn't set (or was deleted).",
+        "fix": "Open the automation and pick the target stage again."
+      },
+      "templateMissing": {
+        "title": "Template not found",
+        "explain": "The message template used here isn't set or was deleted.",
+        "fix": "Open the automation or sequence and select a valid template."
+      },
+      "unknownAction": {
+        "title": "Unrecognized action",
+        "explain": "The automation contains an action the system doesn't recognize — likely an old or incomplete configuration.",
+        "fix": "Open the automation, review its actions and save again. If it persists, contact support."
+      },
+      "emptyContent": {
+        "title": "Empty message",
+        "explain": "This step was skipped because the message text came out empty (for example, a template without content).",
+        "fix": "Edit the sequence or automation step and fill in the message text."
+      },
+      "sendUnconfirmed": {
+        "title": "Send not confirmed",
+        "explain": "WhatsApp received the request but didn't confirm the message went out. It may not have reached the lead.",
+        "fix": "Open the lead's conversation and check if the message is there. If not, resend it manually. If this happens often, reconnect WhatsApp in Settings."
+      },
+      "leadNotFound": {
+        "title": "Lead not found",
+        "explain": "The contact for this message no longer exists in the system (it may have been deleted or merged).",
+        "fix": "No action needed. If the lead should still exist, check with your team whether it was deleted."
+      },
+      "rateLimited": {
+        "title": "Too many sends too fast",
+        "explain": "The system tried to send messages too quickly and the service asked for a pause (rate limit).",
+        "fix": "Wait a few minutes — upcoming sends should recover. Avoid very large bursts in a short period."
+      },
+      "networkIssue": {
+        "title": "Connection failure",
+        "explain": "There was a network failure between the system and the sending service at send time.",
+        "fix": "Usually temporary. If new failures show up, check the WhatsApp connection in Settings or contact support."
+      },
+      "sendRetriesExhausted": {
+        "title": "Send failed after several attempts",
+        "explain": "The system tried to send this message a few times in a row and couldn't.",
+        "fix": "Check in Settings → WhatsApp that the number is connected, then resend from the lead's conversation."
+      },
+      "http401": {
+        "title": "Access denied by the service",
+        "explain": "The sending service rejected the system's credentials — part of the integration lost authorization.",
+        "fix": "Contact support to review the integration. It usually needs to be reconfigured."
+      },
+      "http404": {
+        "title": "Resource not found",
+        "explain": "Something this send needed (conversation, number or record) wasn't found by the service.",
+        "fix": "Check the lead's profile and the WhatsApp connection. If it persists, contact support."
+      },
+      "http409": {
+        "title": "Send conflict",
+        "explain": "The service refused the send due to a state conflict — usually WhatsApp wasn't ready at that moment.",
+        "fix": "Check the WhatsApp connection in Settings and try again."
+      },
+      "http4xx": {
+        "title": "Send rejected",
+        "explain": "The sending service rejected this message due to a problem with the data sent.",
+        "fix": "Check the lead's phone number and the message content. If it persists, contact support with the technical details below."
+      },
+      "http5xx": {
+        "title": "Service instability",
+        "explain": "The sending service was unstable or down at that moment. This wasn't caused by your configuration.",
+        "fix": "Wait a few minutes and try again. If it persists for hours, contact support."
+      },
+      "unknown": {
+        "title": "Technical error",
+        "explain": "An unmapped technical error occurred while processing this send.",
+        "fix": "Try again. If it persists, send the technical details below to support."
+      }
     }
   },
   "settingsForms": {
