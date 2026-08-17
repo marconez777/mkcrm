@@ -843,6 +843,31 @@
         "explain": "O WhatsApp recebeu o pedido, mas não confirmou que a mensagem saiu. Ela pode não ter chegado ao lead.",
         "fix": "Abra a conversa do lead e confira se a mensagem aparece. Se não, reenvie manualmente. Se acontecer com frequência, reconecte o WhatsApp em Configurações."
       },
+      "moveCrossingBlocked": {
+        "title": "Movimento entre funis não liberado",
+        "explain": "A automação tentou mover o lead para uma etapa de outro funil, mas essa travessia não está liberada para movimentos automáticos — é uma proteção para o lead não mudar de funil sem controle.",
+        "fix": "Mova o lead manualmente pelo Kanban, ou fale com o suporte para liberar essa travessia para automações."
+      },
+      "moveDestinationLocked": {
+        "title": "Etapa de destino travada",
+        "explain": "A etapa de destino está travada para movimentos automáticos — somente movimentação manual é aceita nela.",
+        "fix": "Mova o lead manualmente, escolha outra etapa de destino na automação, ou destrave a etapa."
+      },
+      "moveAutoDisabled": {
+        "title": "Movimentação automática desligada",
+        "explain": "A regra que permite automações moverem leads de etapa está desligada para esta empresa.",
+        "fix": "Fale com o suporte para ativar a movimentação automática, ou mova os leads manualmente."
+      },
+      "moveAlreadyDone": {
+        "title": "Lead já estava na etapa",
+        "explain": "O lead já se encontrava na etapa de destino (ou este movimento já tinha sido feito antes). Nada foi alterado.",
+        "fix": "Nenhuma ação necessária."
+      },
+      "movePipelineNotEnabled": {
+        "title": "Funil não habilitado para automação",
+        "explain": "O funil deste lead não está habilitado para movimentos automáticos.",
+        "fix": "Fale com o suporte para habilitar o funil, ou mova o lead manualmente."
+      },
       "leadNotFound": {
         "title": "Lead não encontrado",
         "explain": "O contato desta mensagem não existe mais no sistema (pode ter sido excluído ou mesclado).",

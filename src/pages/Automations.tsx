@@ -56,14 +56,29 @@ export default function Automations() {
     const [a, { data: ag }, { data: st }, { data: tp }, { data: cf }, { data: wi }] = await Promise.all([
       fetchAllPaged<any>(() => supabase.from("automations").select("*").order("created_at")),
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
-      supabase.from("pipeline_stages").select("id, name, pipelines!inner(is_default, kind)").eq("pipelines.is_default", true).eq("pipelines.kind", "sales").order("position"),
+      supabase.from("pipeline_stages").select("id, name, position, pipelines!inner(name, kind, position)").neq("pipelines.kind", "internal").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
       supabase.from("lead_custom_fields").select("field_key, label, field_type, options").order("position"),
       supabase.from("whatsapp_instances").select("id, name, is_default"),
     ]);
     setList(a as any);
     setAgents(ag ?? []);
-    setStages(st ?? []);
+    // Ordena por funil (posição do pipeline) e, dentro dele, pela posição da etapa.
+    setStages(
+      (st ?? [])
+        .map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          position: s.position,
+          pipelineName: s.pipelines?.name ?? "",
+          pipelinePosition: s.pipelines?.position ?? 0,
+        }))
+        .sort((a: any, b: any) =>
+          (a.pipelinePosition - b.pipelinePosition) ||
+          a.pipelineName.localeCompare(b.pipelineName) ||
+          (a.position - b.position)
+        )
+    );
     setTemplates(tp ?? []);
     setAllFields(cf ?? []);
     setInstances(wi ?? []);
@@ -396,7 +411,7 @@ export default function Automations() {
                             value={selected.trigger_config?.stage_id ?? ""}
                             onChange={(e) => updTrigger({ stage_id: e.target.value || undefined })}>
                             <option value="">— qualquer —</option>
-                            {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            <StageSelectOptions stages={stages} />
                           </select>
                         </div>
                         <div className="flex items-end justify-between gap-3">
@@ -518,8 +533,13 @@ export default function Automations() {
                     value={selected.action_config?.stage_id ?? ""}
                     onChange={(e) => updAction({ stage_id: e.target.value })}>
                     <option value="">— escolha —</option>
-                    {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    <StageSelectOptions stages={stages} />
                   </select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Etapas de outro funil aparecem agrupadas. Mover entre funis por automação
+                    só funciona se a travessia estiver liberada — senão a execução registra o
+                    bloqueio na Fila &amp; Logs.
+                  </p>
                 </div>
               )}
 
@@ -568,10 +588,40 @@ function normalizeStageIds(cfg: any): string[] {
   return [];
 }
 
+type StageOption = { id: string; name: string; pipelineName?: string };
+
+function groupByPipeline(stages: StageOption[]): Array<{ pipeline: string; items: StageOption[] }> {
+  const groups: Array<{ pipeline: string; items: StageOption[] }> = [];
+  for (const s of stages) {
+    const pipeline = s.pipelineName ?? "";
+    const last = groups[groups.length - 1];
+    if (last && last.pipeline === pipeline) last.items.push(s);
+    else groups.push({ pipeline, items: [s] });
+  }
+  return groups;
+}
+
+/** <option>s agrupadas por funil (usa <optgroup> quando há mais de um). */
+function StageSelectOptions({ stages }: { stages: StageOption[] }) {
+  const groups = groupByPipeline(stages);
+  if (groups.length <= 1) {
+    return <>{stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</>;
+  }
+  return (
+    <>
+      {groups.map((g) => (
+        <optgroup key={g.pipeline || "-"} label={g.pipeline || "—"}>
+          {g.items.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </optgroup>
+      ))}
+    </>
+  );
+}
+
 function StageMultiSelect({
   stages, value, onChange, label,
 }: {
-  stages: { id: string; name: string }[];
+  stages: StageOption[];
   value: string[];
   onChange: (ids: string[]) => void;
   label: string;
@@ -579,6 +629,8 @@ function StageMultiSelect({
   const toggle = (id: string) => {
     onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
   };
+  const groups = groupByPipeline(stages);
+  const showHeaders = groups.length > 1;
   return (
     <div>
       <Label>{label}</Label>
@@ -586,20 +638,29 @@ function StageMultiSelect({
         {stages.length === 0 && (
           <p className="text-xs text-muted-foreground px-1 py-2">Nenhum estágio disponível.</p>
         )}
-        {stages.map((s) => {
-          const checked = value.includes(s.id);
-          return (
-            <label key={s.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent cursor-pointer">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(s.id)}
-                className="h-4 w-4"
-              />
-              <span className="flex-1">{s.name}</span>
-            </label>
-          );
-        })}
+        {groups.map((g) => (
+          <div key={g.pipeline || "-"}>
+            {showHeaders && (
+              <div className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground first:pt-0">
+                {g.pipeline || "—"}
+              </div>
+            )}
+            {g.items.map((s) => {
+              const checked = value.includes(s.id);
+              return (
+                <label key={s.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(s.id)}
+                    className="h-4 w-4"
+                  />
+                  <span className="flex-1">{s.name}</span>
+                </label>
+              );
+            })}
+          </div>
+        ))}
       </div>
       {value.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
@@ -607,7 +668,7 @@ function StageMultiSelect({
             const s = stages.find((x) => x.id === id);
             return (
               <Badge key={id} variant="secondary" className="text-[11px]">
-                {s?.name ?? id.slice(0, 8)}
+                {s ? (s.pipelineName ? `${s.pipelineName} · ${s.name}` : s.name) : id.slice(0, 8)}
               </Badge>
             );
           })}

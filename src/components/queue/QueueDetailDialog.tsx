@@ -36,6 +36,8 @@ function fixCta(key: QueueErrorKey, source: QueueSource): { to: string; labelKey
     case "missingAgent":
     case "stageMissing":
     case "unknownAction":
+    case "moveCrossingBlocked":
+    case "moveDestinationLocked":
       return { to: "/ai/messages/automations", labelKey: "goToAutomations" };
     case "templateMissing":
     case "emptyContent":

@@ -843,6 +843,31 @@
         "explain": "WhatsApp recibió la solicitud pero no confirmó que el mensaje saliera. Puede que no haya llegado al lead.",
         "fix": "Abre la conversación del lead y comprueba si el mensaje aparece. Si no, reenvíalo manualmente. Si ocurre a menudo, reconecta WhatsApp en Ajustes."
       },
+      "moveCrossingBlocked": {
+        "title": "Movimiento entre funnels no permitido",
+        "explain": "La automatización intentó mover el lead a una etapa de otro funnel, pero ese cruce no está habilitado para movimientos automáticos; es una protección para que los leads no cambien de funnel sin control.",
+        "fix": "Mueve el lead manualmente en el Kanban, o contacta con soporte para habilitar este cruce para automatizaciones."
+      },
+      "moveDestinationLocked": {
+        "title": "Etapa de destino bloqueada",
+        "explain": "La etapa de destino está bloqueada para movimientos automáticos; solo acepta movimientos manuales.",
+        "fix": "Mueve el lead manualmente, elige otra etapa de destino en la automatización, o desbloquea la etapa."
+      },
+      "moveAutoDisabled": {
+        "title": "Movimientos automáticos desactivados",
+        "explain": "La regla que permite a las automatizaciones mover leads de etapa está desactivada para esta empresa.",
+        "fix": "Contacta con soporte para activar los movimientos automáticos, o mueve los leads manualmente."
+      },
+      "moveAlreadyDone": {
+        "title": "El lead ya estaba en la etapa",
+        "explain": "El lead ya se encontraba en la etapa de destino (o este movimiento ya se había hecho antes). No se cambió nada.",
+        "fix": "No hace falta hacer nada."
+      },
+      "movePipelineNotEnabled": {
+        "title": "Funnel no habilitado para automatización",
+        "explain": "El funnel de este lead no está habilitado para movimientos automáticos.",
+        "fix": "Contacta con soporte para habilitar el funnel, o mueve el lead manualmente."
+      },
       "leadNotFound": {
         "title": "Lead no encontrado",
         "explain": "El contacto de este mensaje ya no existe en el sistema (puede haber sido eliminado o fusionado).",

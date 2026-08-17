@@ -16,6 +16,11 @@ export type QueueErrorKey =
   | "unknownAction"
   | "emptyContent"
   | "sendUnconfirmed"
+  | "moveCrossingBlocked"
+  | "moveDestinationLocked"
+  | "moveAutoDisabled"
+  | "moveAlreadyDone"
+  | "movePipelineNotEnabled"
   | "leadNotFound"
   | "rateLimited"
   | "networkIssue"
@@ -38,12 +43,18 @@ const RULES: Array<[QueueErrorKey, RegExp]> = [
   ["aiQuota", /insufficient_quota|exceeded your current quota|credit balance|quota exceeded|billing_not_active/i],
   ["aiKeyInvalid", /incorrect api key|invalid[ _]api[ _]key|api key not valid|api_key_invalid/i],
   ["missingAgent", /missing agent_id/i],
-  ["stageMissing", /missing stage_id/i],
+  ["stageMissing", /missing stage_id|to_stage_not_found/i],
   ["templateMissing", /missing template_id|template not found/i],
   ["unknownAction", /unknown action/i],
   ["emptyContent", /empty content/i],
   ["sendUnconfirmed", /sem id de mensagem|falha ao confirmar envio/i],
-  ["leadNotFound", /lead n.o encontrad/i],
+  // Recusas do pipelineMove (gates) quando a acao "mover de estagio" nao executa.
+  ["moveCrossingBlocked", /gate_g9_crossing|guard_d3/i],
+  ["moveDestinationLocked", /gate_g2_destination_locked/i],
+  ["moveAutoDisabled", /gate_g3_disabled/i],
+  ["moveAlreadyDone", /already_at_destination|idempotent:/i],
+  ["movePipelineNotEnabled", /clinic_not_allowlisted|pipeline_not_in_ai_targets/i],
+  ["leadNotFound", /lead n.o encontrad|lead_not_found/i],
   ["rateLimited", /rate limit|too many requests|(^|\s)429\s*:/i],
   ["networkIssue", /\btime ?out|\btimed out|network error|fetch failed|error sending request|socket hang|econnrefused|unreachable/i],
   ["sendRetriesExhausted", /falha ao enviar ap.s tentativas/i],

@@ -843,6 +843,31 @@
         "explain": "WhatsApp received the request but didn't confirm the message went out. It may not have reached the lead.",
         "fix": "Open the lead's conversation and check if the message is there. If not, resend it manually. If this happens often, reconnect WhatsApp in Settings."
       },
+      "moveCrossingBlocked": {
+        "title": "Cross-pipeline move not allowed",
+        "explain": "The automation tried to move the lead to a stage in another pipeline, but that crossing isn't enabled for automatic moves — a safeguard so leads don't switch pipelines uncontrolled.",
+        "fix": "Move the lead manually on the Kanban, or contact support to enable this crossing for automations."
+      },
+      "moveDestinationLocked": {
+        "title": "Target stage locked",
+        "explain": "The target stage is locked for automatic moves — only manual moves are accepted there.",
+        "fix": "Move the lead manually, pick another target stage in the automation, or unlock the stage."
+      },
+      "moveAutoDisabled": {
+        "title": "Automatic moves disabled",
+        "explain": "The rule that allows automations to move leads between stages is disabled for this company.",
+        "fix": "Contact support to enable automatic moves, or move the leads manually."
+      },
+      "moveAlreadyDone": {
+        "title": "Lead already in stage",
+        "explain": "The lead was already in the target stage (or this move had already been done before). Nothing was changed.",
+        "fix": "No action needed."
+      },
+      "movePipelineNotEnabled": {
+        "title": "Pipeline not enabled for automation",
+        "explain": "This lead's pipeline isn't enabled for automatic moves.",
+        "fix": "Contact support to enable the pipeline, or move the lead manually."
+      },
       "leadNotFound": {
         "title": "Lead not found",
         "explain": "The contact for this message no longer exists in the system (it may have been deleted or merged).",
