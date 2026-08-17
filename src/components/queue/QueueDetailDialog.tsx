@@ -90,13 +90,24 @@ export function QueueDetailDialog({ row, onClose }: { row: QueueRow | null; onCl
             <DialogHeader>
               <DialogTitle>{t("queueLogs.dialog.title")}</DialogTitle>
               <DialogDescription>
-                {t(`queueLogs.source.${row.source}`, { defaultValue: row.source })} · {fmtFull(row.when)}
+                {t(`queueLogs.source.${row.source}`, { defaultValue: row.source })}
+                {row.originName ? ` · ${row.originName}` : ""} · {fmtFull(row.when)}
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid grid-cols-2 gap-3">
               <Field label={t("queueLogs.dialog.origin")}>
-                <Badge variant="outline">{t(`queueLogs.source.${row.source}`, { defaultValue: row.source })}</Badge>
+                <div className="space-y-1">
+                  <Badge variant="outline">{t(`queueLogs.source.${row.source}`, { defaultValue: row.source })}</Badge>
+                  {row.originName && (
+                    <div className="text-sm font-medium">
+                      {row.originName}
+                      {row.extra?.step ? (
+                        <span className="font-normal text-muted-foreground"> · {t("queueLogs.dialog.stepN", { n: row.extra.step })}</span>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               </Field>
               <Field label={t("queueLogs.dialog.status")}>
                 <StatusBadge status={row.status} />

@@ -765,6 +765,7 @@
       "lead": "Lead",
       "content": "Contenido",
       "sentContent": "Contenido enviado",
+      "stepN": "Paso {{n}}",
       "howToFix": "Cómo resolverlo",
       "technical": "Detalles técnicos (para soporte)",
       "refId": "ID de referencia",

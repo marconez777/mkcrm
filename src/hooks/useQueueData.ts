@@ -10,6 +10,8 @@ export type QueueRow = {
   when: string;            // ISO
   leadId: string | null;
   leadName: string | null;
+  /** Nome da automação/sequência/agente de IA que originou o envio. */
+  originName: string | null;
   preview: string | null;
   status: QueueStatus | string;
   detail: string | null;
@@ -26,6 +28,32 @@ async function hydrateLeads(ids: string[]): Promise<LeadMap> {
   const map: LeadMap = {};
   (data ?? []).forEach((l: any) => { map[l.id] = { name: l.name, phone: l.phone }; });
   return map;
+}
+
+async function hydrateNames(
+  table: "automations" | "message_sequences" | "ai_agents",
+  ids: Array<string | null | undefined>,
+): Promise<Record<string, string>> {
+  const uniq = Array.from(new Set(ids.filter(Boolean))) as string[];
+  if (uniq.length === 0) return {};
+  const { data } = await supabase.from(table).select("id, name").in("id", uniq);
+  const map: Record<string, string> = {};
+  (data ?? []).forEach((r: any) => { map[r.id] = r.name; });
+  return map;
+}
+
+/** step_id -> número do passo (1-based), na mesma ordem exibida na tela de Sequências. */
+async function hydrateStepRanks(sequenceIds: string[]): Promise<Record<string, number>> {
+  if (sequenceIds.length === 0) return {};
+  const { data } = await supabase.from("message_sequence_steps")
+    .select("id, sequence_id, position").in("sequence_id", sequenceIds).order("position");
+  const rank: Record<string, number> = {};
+  const counter: Record<string, number> = {};
+  (data ?? []).forEach((s: any) => {
+    counter[s.sequence_id] = (counter[s.sequence_id] ?? 0) + 1;
+    rank[s.id] = counter[s.sequence_id];
+  });
+  return rank;
 }
 
 /** Fila ativa: próximos envios pendentes/agendados. */
@@ -53,17 +81,22 @@ export function useUpcomingQueue() {
         ...(replies.data ?? []).map((r: any) => r.lead_id),
         ...(enrolls.data ?? []).map((r: any) => r.lead_id),
       ];
-      const leads = await hydrateLeads(leadIds);
+      const [leads, seqNames, agentNames] = await Promise.all([
+        hydrateLeads(leadIds),
+        hydrateNames("message_sequences", (enrolls.data ?? []).map((r: any) => r.sequence_id)),
+        hydrateNames("ai_agents", (replies.data ?? []).map((r: any) => r.agent_id)),
+      ]);
 
       const rows: QueueRow[] = [];
       (sched.data ?? []).forEach((r: any) => rows.push({
         id: `sched:${r.id}`, source: "scheduled", when: r.send_at, leadId: r.lead_id,
-        leadName: leads[r.lead_id]?.name ?? null,
+        leadName: leads[r.lead_id]?.name ?? null, originName: null,
         preview: (r.content ?? "").slice(0, 80), status: r.status, detail: null, refId: r.id,
       }));
       (replies.data ?? []).forEach((r: any) => rows.push({
         id: `reply:${r.lead_id}:${r.agent_id}`, source: "reply", when: r.run_at, leadId: r.lead_id,
         leadName: leads[r.lead_id]?.name ?? null,
+        originName: agentNames[r.agent_id] ?? null,
         preview: `Resposta IA pendente (tentativas: ${r.attempts ?? 0})`,
         status: r.status, detail: r.last_error ?? null,
         refId: `${r.lead_id}::${r.agent_id}`,
@@ -72,9 +105,10 @@ export function useUpcomingQueue() {
       (enrolls.data ?? []).forEach((r: any) => rows.push({
         id: `enroll:${r.id}`, source: "sequence", when: r.next_run_at, leadId: r.lead_id,
         leadName: leads[r.lead_id]?.name ?? null,
+        originName: seqNames[r.sequence_id] ?? null,
         preview: `Sequência — próximo passo (#${(r.current_step ?? 0) + 1})`,
         status: "pending", detail: null, refId: r.id,
-        extra: { sequence_id: r.sequence_id },
+        extra: { sequence_id: r.sequence_id, step: (r.current_step ?? 0) + 1 },
       }));
       rows.sort((a, b) => new Date(a.when).getTime() - new Date(b.when).getTime());
       return rows;
@@ -91,7 +125,7 @@ export function useHistoryQueue(opts: { failedOnly?: boolean } = {}) {
       const failed = opts.failedOnly === true;
       const [seq, autos, sched] = await Promise.all([
         supabase.from("message_sequence_runs")
-          .select("id, enrollment_id, status, message_id, detail, created_at")
+          .select("id, enrollment_id, step_id, status, message_id, detail, created_at")
           .in("status", failed ? ["failed"] : ["sent", "failed", "skipped"])
           .order("created_at", { ascending: false }).limit(200),
         supabase.from("automation_runs")
@@ -106,32 +140,43 @@ export function useHistoryQueue(opts: { failedOnly?: boolean } = {}) {
 
       // hydrate lead ids: automation_runs has lead_id; sequence_runs needs enrollment lookup
       const enrollIds = Array.from(new Set((seq.data ?? []).map((r: any) => r.enrollment_id).filter(Boolean)));
-      let enrollMap: Record<string, string> = {};
+      let enrollMap: Record<string, { lead_id: string; sequence_id: string }> = {};
       if (enrollIds.length) {
         const { data: enrolls } = await supabase.from("message_sequence_enrollments")
-          .select("id, lead_id").in("id", enrollIds);
-        (enrolls ?? []).forEach((e: any) => { enrollMap[e.id] = e.lead_id; });
+          .select("id, lead_id, sequence_id").in("id", enrollIds);
+        (enrolls ?? []).forEach((e: any) => { enrollMap[e.id] = { lead_id: e.lead_id, sequence_id: e.sequence_id }; });
       }
       const leadIds = [
         ...(autos.data ?? []).map((r: any) => r.lead_id),
         ...(sched.data ?? []).map((r: any) => r.lead_id),
-        ...Object.values(enrollMap),
+        ...Object.values(enrollMap).map((e) => e.lead_id),
       ];
-      const leads = await hydrateLeads(leadIds);
+      const seqIds = Array.from(new Set(Object.values(enrollMap).map((e) => e.sequence_id).filter(Boolean)));
+      const [leads, autoNames, seqNames, stepRank] = await Promise.all([
+        hydrateLeads(leadIds),
+        hydrateNames("automations", (autos.data ?? []).map((r: any) => r.automation_id)),
+        hydrateNames("message_sequences", seqIds),
+        hydrateStepRanks(seqIds),
+      ]);
 
       const rows: QueueRow[] = [];
       (seq.data ?? []).forEach((r: any) => {
-        const leadId = enrollMap[r.enrollment_id] ?? null;
+        const en = enrollMap[r.enrollment_id];
+        const leadId = en?.lead_id ?? null;
+        const step = r.step_id ? stepRank[r.step_id] ?? null : null;
         rows.push({
           id: `seqrun:${r.id}`, source: "sequence", when: r.created_at, leadId,
           leadName: leadId ? leads[leadId]?.name ?? null : null,
-          preview: "Sequência — passo executado",
+          originName: en ? seqNames[en.sequence_id] ?? null : null,
+          preview: step ? `Sequência — passo ${step} executado` : "Sequência — passo executado",
           status: r.status, detail: r.detail ?? null, refId: r.id,
+          extra: { sequence_id: en?.sequence_id ?? null, step },
         });
       });
       (autos.data ?? []).forEach((r: any) => rows.push({
         id: `autorun:${r.id}`, source: "automation", when: r.created_at, leadId: r.lead_id,
         leadName: leads[r.lead_id]?.name ?? null,
+        originName: autoNames[r.automation_id] ?? null,
         preview: "Automação executada",
         status: r.status, detail: r.detail ?? null, refId: r.id,
         extra: { automation_id: r.automation_id },
@@ -139,7 +184,7 @@ export function useHistoryQueue(opts: { failedOnly?: boolean } = {}) {
       (sched.data ?? []).forEach((r: any) => rows.push({
         id: `sched:${r.id}`, source: "scheduled",
         when: r.sent_at ?? r.send_at ?? r.created_at, leadId: r.lead_id,
-        leadName: leads[r.lead_id]?.name ?? null,
+        leadName: leads[r.lead_id]?.name ?? null, originName: null,
         preview: (r.content ?? "").slice(0, 80),
         status: r.status, detail: r.last_error ?? null, refId: r.id,
       }));

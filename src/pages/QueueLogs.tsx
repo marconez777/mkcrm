@@ -87,7 +87,14 @@ function QueueTable({
           {rows.map((r) => (
             <TableRow key={r.id} className="cursor-pointer" onClick={() => onView(r)}>
               <TableCell className="text-xs whitespace-nowrap">{fmtWhen(r.when)}</TableCell>
-              <TableCell><Badge variant="outline">{t(`queueLogs.source.${r.source}`, { defaultValue: r.source })}</Badge></TableCell>
+              <TableCell>
+                <Badge variant="outline">{t(`queueLogs.source.${r.source}`, { defaultValue: r.source })}</Badge>
+                {r.originName && (
+                  <div className="mt-1 max-w-[160px] truncate text-xs text-muted-foreground" title={r.originName}>
+                    {r.originName}
+                  </div>
+                )}
+              </TableCell>
               <TableCell>
                 {r.leadId ? (
                   <Link
@@ -131,7 +138,12 @@ function filterRows(rows: QueueRow[], { source, status, search }: { source: stri
   return rows.filter((r) => {
     if (source !== "all" && r.source !== source) return false;
     if (status !== "all" && r.status !== status) return false;
-    if (q && !(r.leadName ?? "").toLowerCase().includes(q) && !(r.preview ?? "").toLowerCase().includes(q)) return false;
+    if (
+      q &&
+      !(r.leadName ?? "").toLowerCase().includes(q) &&
+      !(r.preview ?? "").toLowerCase().includes(q) &&
+      !(r.originName ?? "").toLowerCase().includes(q)
+    ) return false;
     return true;
   });
 }
