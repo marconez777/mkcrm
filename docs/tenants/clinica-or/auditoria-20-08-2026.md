@@ -201,11 +201,22 @@ regra determinística de "1ª consulta". Datas de agendamento continuam proibida
 
 E um caminho **indireto**, que a documentação de fluxo não menciona:
 
-🔴 **`pipeline-auto-finalize-or`** — cron a cada 15 min, exclusivo da ÓR, marca como
-`realizado` todo `appointment` com `status='agendado'` no passado. O trigger de
-appointment então chama `appointment-sync`, que **move o card para Consulta/Tratamento
-Finalizado sozinho**. O [FLUXO_ALVO §2.2](FLUXO_ALVO.md) diz que a saída para
-*Finalizada* é "manual". Não é: o relógio faz isso.
+⚪ **`pipeline-auto-finalize-or`** — cron a cada 15 min, exclusivo da ÓR, marca como
+`realizado` todo `appointment` com `status='agendado'` no passado; o trigger então
+chama `appointment-sync`, que moveria o card para *Finalizada* sozinho.
+
+> ✅ **Medido em 20/08 11:05: a tabela `appointments` da clínica está VAZIA.**
+> Zero registros, de qualquer `kind` ou `status`. A função roda a cada 15 minutos
+> sobre nada, e **toda a regra `appointment-sync` é código morto neste tenant** —
+> inclusive os caminhos de `faltou` e `cancelado` que mandariam o card para
+> *Paciente Ativo*. O FLUXO_ALVO §2.2 está certo: a saída para *Finalizada* é
+> manual mesmo.
+
+🔴 **Consequência maior:** **o agendamento na ÓR é 100% por campo de data no card.**
+Quem move o paciente para as colunas de agendamento é `auto:field-changed-*`, lendo
+`consulta_agendada_em` / `procedimento_agendado_em`. Toda doc que descreve o fluxo
+via compromissos descreve um mecanismo que este tenant não usa — e qualquer regra
+futura que dependa de `appointments` nasce morta.
 
 ---
 
@@ -305,7 +316,7 @@ select jsonb_pretty(jsonb_build_object(
 |---|---|---|
 | ~~**A1**~~ | ~~Funil de Pacientes fora de `ai_target_pipeline_ids`~~ ✅ **resolvido 20/08 10:41** — funil marcado, 134 presos reprocessados | — |
 | **A2** | As 2 regras temporais do funil de Pacientes (7d e 60d) estão **desligadas** | 🔴 |
-| **A3** | `pipeline-auto-finalize-or` fecha consulta sozinho a cada 15 min — contradiz o fluxo alvo | 🟠 |
+| **A3** | `appointments` **vazia**: `appointment-sync` e `pipeline-auto-finalize-or` são código morto na ÓR. Agendamento é 100% por campo de data | 🟠 |
 | **A4** | Classifier gasta 5 agentes por lead e joga a saída do Movimentador fora | 🟠 |
 | **A5** | Recusa de move não deixa rastro — diagnóstico depende de `logEvent` por regra | 🟠 |
 | **A6** | Guard D3 e a constante `PACIENTE_ANTIGO_NAME` viraram código morto pelo rename | 🟡 |

@@ -224,9 +224,30 @@ Hoje há **469 cards** em *Paciente Inativo*, e a maioria chegou lá por critér
 antigos (60 dias, sweep mensal, ou a fusão de *Nutrição Antigos* no Bloco B). Quem
 agendou nos últimos 120 dias não pode continuar ali.
 
-**Não usar `stage_changed_at` como critério de limpeza.** 415 daqueles cards
+**Não usar `stage_changed_at` como critério de limpeza.** 422 daqueles cards
 entraram na coluna em 13/08 pela migração do Bloco B — por esse relógio, todos
-teriam "7 dias de coluna" e sairiam em massa. O critério é o agendamento real.
+teriam "7 dias de coluna" e sairiam em massa.
+
+**Nem usar `appointments`: a tabela está vazia neste tenant** (medido em 20/08).
+O registro durável de "agendou" é o `lead_stage_history` — toda entrada em
+*Consulta agendada* ou *Tratamento agendado* fica gravada e sobrevive ao apagamento
+da data no card.
+
+**Medição de 20/08 11:05, sobre os 463 da coluna:**
+
+| Grupo | Qtd | Destino |
+|---|---|---|
+| Agendou **há menos de 120 dias** | **22** | 🔴 violam a regra → *Paciente Ativo* |
+| Agendou há mais de 120 dias | 0 | ficam |
+| **Nunca agendou** | 441 | ficam (cumprem por definição) |
+| ↳ dos quais, nunca falaram também | 335 | ficam — mas são **lead frio, não paciente** |
+| Com data ainda preenchida no card | 24 | 🔴 conferir: data futura = agendamento vivo |
+
+> ⚠️ **A coluna mistura duas populações.** 422 dos 463 vieram de *Nutrição Antigos*
+> na fusão do Bloco B — geladeira de **lead**, não de paciente — e 335 nunca
+> agendaram nem mandaram uma mensagem. Não viola a regra dos 120 dias, mas
+> *"Paciente Inativo"* com 72% de lead frio que nunca foi paciente é decisão de
+> produto em aberto, não defeito.
 
 **Destino:** *Paciente Ativo* — é a fila de trabalho do funil, e é para onde a regra
 de reativação já manda todo mundo.
@@ -246,10 +267,17 @@ update public.leads l
    and l.stage_id  = '7fea97d7-c2af-4e6f-8f39-af8375bb4468'
    and l.archived_at is null
    and coalesce(l.is_internal_contact,false) = false
-   and exists (select 1 from public.appointments ap
-                where ap.lead_id = l.id
-                  and ap.kind in ('consulta','procedimento')
-                  and ap.scheduled_at > now() - interval '120 days');
+   and (
+     -- agendou nos últimos 120 dias, pelo histórico de colunas
+     exists (select 1 from public.lead_stage_history h
+              where h.lead_id = l.id
+                and h.to_stage_id in ('e12f004a-6445-4815-8d6b-22f928507a9a',
+                                      '98320189-6002-4f75-b99d-0b407189efe8')
+                and h.moved_at > now() - interval '120 days')
+     -- ou tem data de agendamento ainda preenchida no card
+     or l.custom_fields ? 'consulta_agendada_em'
+     or l.custom_fields ? 'procedimento_agendado_em'
+   );
 
 -- confira o número antes de confirmar
 commit;
