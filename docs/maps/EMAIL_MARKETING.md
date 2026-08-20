@@ -192,8 +192,9 @@ Chamado pela `src/pages/Unsubscribe.tsx`.
 
 ### 3.9 `resend-webhook` (99 LOC)
 
-Webhook oficial. **Rejeita se `RESEND_WEBHOOK_SECRET` não estiver setado.**
-Valida assinatura Svix. Dedup por `svix-id` (R-5). Atualiza `email_logs`
+Webhook oficial. **Rejeita se nenhuma env `RESEND_WEBHOOK_SECRET*` estiver setada.**
+Valida assinatura Svix contra todas as envs com esse prefixo — uma por conta
+Resend (ex.: `RESEND_WEBHOOK_SECRET_MCD`). Dedup por `svix-id` (R-5). Atualiza `email_logs`
 buscando pelo `resend_id` — inclui evento em `events` JSONB
 (delivered/opened/clicked/bounced/complained) e ajusta `status` quando
 bounce/complaint.
@@ -235,8 +236,10 @@ Cap `MAX_PER_COHORT=2000` por clínica.
   → 412 e `email_queue.status='failed'`.
 - **Nunca** remova o `List-Unsubscribe`/`List-Unsubscribe-Post` do
   `send-email` — Gmail/Yahoo exigem para bulk sender compliance.
-- `resend-webhook` **exige** `RESEND_WEBHOOK_SECRET` — sem ele, webhook
-  rejeita 401. Não silencie.
+- `resend-webhook` **exige** ao menos uma env `RESEND_WEBHOOK_SECRET*` — sem
+  ela, webhook rejeita 401. Não silencie. Conta Resend nova (por clínica)
+  precisa de endpoint próprio no painel Resend + env
+  `RESEND_WEBHOOK_SECRET_<CLINICA>` com o signing secret dele.
 - `email_send_state.sent_today` é decrementado quando envio falha
   ou é bloqueado por warm-up/throttle DEPOIS do claim de cota.
   Não altere a ordem dos gates 8→9→10 sem revisar os `release`.

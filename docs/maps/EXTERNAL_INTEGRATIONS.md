@@ -109,7 +109,7 @@ Detalhes profundos ficam nos mapas especÃ­ficos (`EVOLUTION_EDGES.md`,
 
 **Segredos runtime:**
 - `RESEND_API_KEY` â€” connector-managed. NÃ£o usar direto na app â€” todas as chamadas passam por Lovable Emails, exceto quando o usuÃ¡rio explicitamente escolher Resend puro.
-- `RESEND_WEBHOOK_SECRET` â€” usado por `resend-webhook` (assinatura Svix).
+- `RESEND_WEBHOOK_SECRET*` â€” usado por `resend-webhook` (assinatura Svix). Multi-conta: toda env com esse prefixo Ã© testada (ex.: `RESEND_WEBHOOK_SECRET_MCD` para a conta Resend da MCD).
 
 **SuperfÃ­cies:**
 - **`resend-webhook`** â†’ recebe eventos (`delivered`, `bounced`, `complained`, `opened`, `clicked`, `unsubscribed`) e insere em `resend_webhook_events` + atualiza `email_send_log`. Valida assinatura com `svix` (`svix-id`, `svix-timestamp`, `svix-signature`). Rejeita 401 se invÃ¡lido.

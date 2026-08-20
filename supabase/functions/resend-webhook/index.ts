@@ -1,7 +1,8 @@
 // Edge Function: resend-webhook
 import { applyLeadOrigin, originFor } from "../_shared/lead-origin.ts";
 // Recebe eventos do Resend (delivered/opened/clicked/bounced/complained).
-// Valida assinatura Svix se RESEND_WEBHOOK_SECRET estiver setado.
+// Valida assinatura Svix contra TODAS as envs RESEND_WEBHOOK_SECRET* —
+// cada conta Resend (ex.: MCD) tem seu próprio signing secret.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { Webhook } from "https://esm.sh/svix@1.21.0";
@@ -15,22 +16,40 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const rawBody = await req.text();
-    const secret = Deno.env.get("RESEND_WEBHOOK_SECRET");
-    let event: any;
-    if (secret) {
-      try {
-        event = new Webhook(secret).verify(rawBody, {
-          "svix-id": req.headers.get("svix-id") ?? "",
-          "svix-timestamp": req.headers.get("svix-timestamp") ?? "",
-          "svix-signature": req.headers.get("svix-signature") ?? "",
-        });
-      } catch (e) {
-        console.warn("resend-webhook invalid signature", e);
-        return jsonResponse({ error: "invalid signature" }, { status: 401 });
-      }
-    } else {
+    // Multi-conta: aceita qualquer env cujo nome comece com RESEND_WEBHOOK_SECRET
+    // (RESEND_WEBHOOK_SECRET, RESEND_WEBHOOK_SECRET_MCD, ...). O secret principal
+    // vem primeiro (nome mais curto) porque concentra o grosso do tráfego.
+    let secrets: string[] = [];
+    try {
+      secrets = Object.entries(Deno.env.toObject())
+        .filter(([k, v]) => k.startsWith("RESEND_WEBHOOK_SECRET") && v)
+        .sort(([a], [b]) => a.length - b.length)
+        .map(([, v]) => v);
+    } catch {
+      const single = Deno.env.get("RESEND_WEBHOOK_SECRET");
+      if (single) secrets = [single];
+    }
+    if (!secrets.length) {
       console.error("resend-webhook rejected: RESEND_WEBHOOK_SECRET is not configured");
       return jsonResponse({ error: "webhook secret not configured" }, { status: 401 });
+    }
+    const svixHeaders = {
+      "svix-id": req.headers.get("svix-id") ?? "",
+      "svix-timestamp": req.headers.get("svix-timestamp") ?? "",
+      "svix-signature": req.headers.get("svix-signature") ?? "",
+    };
+    let event: any = null;
+    for (const s of secrets) {
+      try {
+        event = new Webhook(s).verify(rawBody, svixHeaders);
+        break;
+      } catch {
+        // assinatura não bate com este secret — tenta o próximo
+      }
+    }
+    if (!event) {
+      console.warn(`resend-webhook invalid signature (${secrets.length} secrets testados)`);
+      return jsonResponse({ error: "invalid signature" }, { status: 401 });
     }
 
     const resendId = event?.data?.email_id;
