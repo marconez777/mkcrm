@@ -121,16 +121,30 @@ na coluna** — e o sintoma seria idêntico ao de hoje: cards parados sem explic
 Com 7 dias o defeito já existia; ninguém viu porque as regras estavam desligadas.
 Com 120 dias, ele só apareceria daqui a quatro meses.
 
-**Correção:** incluir a estadia atual na chave, para que ela seja única por passagem:
+**Correção:** incluir a estadia atual na chave, para que ela seja única por passagem.
+`runAction` recebe apenas `leadId`, então o campo precisa ser buscado dentro do
+próprio bloco `move_stage` — uma leitura a mais só quando há movimento de verdade:
 
 ```ts
-idempotencyKey: `automation:${a.id}:${leadId}:${stageId}:${lead.stage_changed_at ?? ""}`,
+if (a.action_type === "move_stage") {
+  const stageId = a.action_config?.stage_id;
+  if (!stageId) return { ok: false, detail: "missing stage_id" };
+
+  // Idempotência por ESTADIA, não por par lead+coluna: sem isto a chave é
+  // permanente e cada lead entra numa coluna uma única vez na vida.
+  const { data: leadRow } = await supabase
+    .from("leads").select("stage_changed_at").eq("id", leadId).maybeSingle();
+  const estadia = leadRow?.stage_changed_at ?? "";
+
+  const moveRes = await pipelineMove(supabase, {
+    // ...
+    idempotencyKey: `automation:${a.id}:${leadId}:${stageId}:${estadia}`,
 ```
 
-`stage_changed_at` já vem no `select` do `findCandidates` para `stage_idle`, e muda a
-cada entrada em coluna nova — dois ciclos nunca colidem. Para `monthly_cleanup` e
-`before_appointment` o campo não é selecionado; usar `?? ""` preserva exatamente o
-comportamento atual nesses casos.
+`stage_changed_at` muda a cada entrada em coluna nova, então dois ciclos do mesmo
+paciente nunca colidem. O `?? ""` mantém o comportamento atual quando o campo for
+nulo. Dentro da mesma estadia a chave continua idêntica — a proteção contra
+repetição no mesmo tick permanece intacta.
 
 > **Deploy:** é mudança de edge function — vai pelo agente do Lovable.
 
