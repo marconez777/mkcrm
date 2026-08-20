@@ -401,13 +401,22 @@ async function runAction(supabase: any, a: Automation, leadId: string, appointme
     // V5: TODO move passa por pipelineMove (gates G1..G5, G8 + D3 + wipe de chips).
     // O helper já valida lock_auto_move (G2), grava lead_stage_history (G5) via
     // trigger + metadata, e garante idempotência (G4). Sem update direto em leads.
+    // Idempotência por ESTADIA, não por par lead+coluna: sem isto a chave é
+    // permanente e cada lead entra numa coluna uma única vez na vida.
+    const { data: leadRow } = await supabase
+      .from("leads")
+      .select("stage_changed_at")
+      .eq("id", leadId)
+      .maybeSingle();
+    const estadia = leadRow?.stage_changed_at ?? "";
+
     const moveRes = await pipelineMove(supabase, {
       leadId,
       toStageId: stageId,
       source: "auto:automation-rule",
       reason: `automation:${a.id} (${a.trigger_type})`,
       ruleKey: "automation.ui_rule_move.enabled",
-      idempotencyKey: `automation:${a.id}:${leadId}:${stageId}`,
+      idempotencyKey: `automation:${a.id}:${leadId}:${stageId}:${estadia}`,
       metadata: {
         automation_id: a.id,
         trigger_type: a.trigger_type,
