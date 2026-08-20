@@ -18,6 +18,25 @@ code_refs:
 
 # Regra de 120 dias — Paciente Inativo
 
+> ## Execução — 20/08/2026
+>
+> | Fase | Estado | Resultado |
+> |---|---|---|
+> | **F0** medir | ✅ 11:05 | `ui_rule_move.enabled = true`, `automations_paused = false`, `run_once = false` nas duas, cooldown 24h. Primeiro tick a 120d moveria **0** cards |
+> | **F1** idempotência | ⏳ **pendente** | Nenhum bloqueio ainda: **nenhuma automação de `move_stage` jamais rodou** nesta clínica (92 runs, todos de mensagem). Defeito latente, não manifesto |
+> | **F2** prazos → 2880h | ✅ 11:13 | As duas regras em `hours = 2880`, ainda `enabled = false` |
+> | **F3** limpar a coluna | ✅ 11:11 | **26 cards** devolvidos a *Paciente Ativo*. Inativo 469 → 443, Ativo 145 → 171. Backup em `_bkp_20260820_paciente_inativo` (469 linhas) |
+> | **F4** ligar as duas | ⏳ **pendente** | Depende da F1 — ver §13 |
+>
+> **3 cards ficaram de fora da F3 de propósito** — `Help Elevadores` (fornecedor),
+> `Ana Paula MK ART` (interno) e `Ivan` (provável Dr. Ivan). Violam a regra dos 120
+> dias mas não são pacientes: o destino certo é *Administrativo* ou
+> `is_internal_contact`, não a fila de trabalho.
+>
+> **Efeito colateral aceito:** a F3 zera `stage_changed_at` dos 26. O relógio deles
+> recomeça hoje, então só retornam a *Paciente Inativo* em meados de dezembro, e não
+> em outubro (120 dias reais desde o agendamento de junho).
+
 ## 1. O que o cliente pediu
 
 > Paciente só pode estar em **Paciente Inativo** com **mais de 120 dias sem agendar
@@ -59,18 +78,18 @@ como exceção conhecida, não como defeito.
 
 ## 3. A cadeia inteira, do relógio ao card
 
-Cada elo abaixo pode matar a regra em silêncio. Os dois marcados 🔴 estão
-**quebrados ou não verificados hoje**.
+Cada elo abaixo pode matar a regra em silêncio. Estados medidos em 20/08 11:05;
+só o elo 8 continua **quebrado**.
 
 | # | Elo | O que faz | Estado |
 |---|---|---|---|
 | 1 | `pg_cron` → `automations-tick` | roda a cada 5 min (comentário do código) | ❓ cron nunca verificado |
-| 2 | `automations.enabled` | as duas regras estão **desligadas** | ❌ off |
-| 3 | `clinics.settings.automations_paused` | kill-switch por clínica; se `true`, o tick pula tudo | ❓ |
+| 2 | `automations.enabled` | as duas regras seguem **desligadas** até a F1 | ❌ off |
+| 3 | `clinics.settings.automations_paused` | kill-switch por clínica; se `true`, o tick pula tudo | ✅ `false` |
 | 4 | `findCandidates('stage_idle')` | `stage_changed_at <= now() - hours`, **limite de 50 leads por automação por tick** | ✅ |
-| 5 | `recentlyRan` | cooldown de no mínimo 1h por lead; `run_once` bloqueia para sempre | ❓ config não lida |
+| 5 | `recentlyRan` | cooldown de 24h nas duas; `run_once = false` | ✅ |
 | 6 | `runAction('move_stage')` → `pipelineMove` | `source: auto:automation-rule` | ✅ |
-| 7 | G3 — toggle `automation.ui_rule_move.enabled` | **se não for `true`, nenhum move acontece** | ❓ valor não lido |
+| 7 | G3 — toggle `automation.ui_rule_move.enabled` | **se não for `true`, nenhum move acontece** | ✅ `true` |
 | 8 | **G4 — idempotência** | chave `automation:{id}:{lead}:{stage}` — **permanente** | 🔴 **defeito, ver §4** |
 | 9 | Filtro `ai_target_pipeline_ids` | corrigido hoje (20/08) | ✅ |
 | 10 | G9 travessia | ambas as colunas vivem no mesmo funil — não se aplica | ✅ |
@@ -385,7 +404,30 @@ select count(*) as violacoes
 
 ---
 
-## 12. Riscos
+## 12. Quando ligar (decidido em 20/08)
+
+Com 2880h **não existe candidato nenhum hoje**: os 26 devolvidos pela F3 vencem em
+meados de dezembro e as colunas de finalizadas estão zeradas nesse critério. Ligar
+agora ou em novembro dá no mesmo — **mas a F1 tem de estar no ar antes do primeiro
+movimento**, ou o paciente movido queima a chave de idempotência para sempre.
+
+**Ordem escolhida:** F1 (edge, via Lovable) → F4 (ligar as duas pela tela).
+
+Enquanto isso, *Paciente Inativo* só esvazia: quem responde sai, ninguém entra.
+
+---
+
+## 13. Pendência descoberta de raspão
+
+`ÓR — Sem Resposta 7d → Nutrição Inativa` está **ligada** no funil de Vendas e
+**nunca disparou** — não tem uma linha em `automation_runs`, enquanto os follow-ups
+#1 e #2, que rodam na mesma coluna, somam 35 execuções. Ou nenhum lead completa 7
+dias em *Sem resposta*, ou a regra está barrada por algum motivo ainda não medido.
+Fora do escopo dos 120 dias; anotado para a próxima rodada.
+
+---
+
+## 14. Riscos
 
 **O toggle `automation.ui_rule_move.enabled`.** Nunca foi lido. Se estiver `false`,
 tudo acima roda e nada move — e o sintoma é silêncio, igual ao filtro de pipeline de
