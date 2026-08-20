@@ -23,7 +23,7 @@ code_refs:
 > | Fase | Estado | Resultado |
 > |---|---|---|
 > | **F0** medir | ✅ 11:05 | `ui_rule_move.enabled = true`, `automations_paused = false`, `run_once = false` nas duas, cooldown 24h. Primeiro tick a 120d moveria **0** cards |
-> | **F1** idempotência | ⏳ **pendente** | Nenhum bloqueio ainda: **nenhuma automação de `move_stage` jamais rodou** nesta clínica (92 runs, todos de mensagem). Defeito latente, não manifesto |
+> | **F1** idempotência | ✅ 20/08 | Chave passa a incluir `stage_changed_at` — única por **estadia** na coluna. Deploy do `automations-tick` feito pelo Lovable, patch conferido no repositório (`cea2721c`). Nenhum lead chegou a ser bloqueado antes: nenhuma automação de `move_stage` jamais rodou nesta clínica |
 > | **F2** prazos → 2880h | ✅ 11:13 | As duas regras em `hours = 2880`, ainda `enabled = false` |
 > | **F3** limpar a coluna | ✅ 11:11 | **26 cards** devolvidos a *Paciente Ativo*. Inativo 469 → 443, Ativo 145 → 171. Backup em `_bkp_20260820_paciente_inativo` (469 linhas) |
 > | **F4** ligar as duas | ⏳ **pendente** | Depende da F1 — ver §13 |
