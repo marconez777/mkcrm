@@ -169,9 +169,11 @@ select jsonb_pretty(jsonb_build_object(
       from pipeline_stages s
      where s.id in ('7fea97d7-c2af-4e6f-8f39-af8375bb4468',
                     '6f492197-9eeb-438d-a940-bd1d7e0224e4')),
-  'campanhas_no_segmento', (select count(*) from email_segments g
+  'segmentos_paciente_antigo', (select jsonb_agg(jsonb_build_object(
+        'nome', g.name, 'ativo', g.active, 'sistema', g.is_system, 'filtros', g.filters))
+      from email_segments g
      where g.clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1'
-       and g.definition::text ilike '%segmento_paciente_antigo%')
+       and g.filters::text ilike '%segmento_paciente_antigo%')
 )) as raio_x;
 ```
 
