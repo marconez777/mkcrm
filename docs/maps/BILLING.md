@@ -111,7 +111,7 @@ Fluxo (`supabase/functions/create-checkout/index.ts`):
 5. Cria session com:
    - `ui_mode: "embedded_page"`
    - `mode: isRecurring ? "subscription" : "payment"`
-   - `automatic_tax: { enabled: true }`
+   - sem `automatic_tax` — Stripe Tax não suporta contas BR; habilitar derruba `session.create` (removido 20/08/2026)
    - `customer_update: { address: "auto" }`
    - `subscription_data.metadata.userId` (para webhooks)
    - `payment_intent_data.description` (só para one-off; nome do produto)

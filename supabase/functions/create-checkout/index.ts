@@ -81,7 +81,7 @@ async function createCheckoutSession(options: {
     mode: isRecurring ? "subscription" : "payment",
     ui_mode: "embedded_page",
     return_url: options.returnUrl,
-    automatic_tax: { enabled: true },
+    // Stripe Tax não suporta contas de país BR — session.create falha com tax habilitado.
     ...(customerId && { customer: customerId, customer_update: { address: "auto" as any } }),
     ...(!isRecurring && { payment_intent_data: { description: productDescription } }),
     ...(options.userId && {
