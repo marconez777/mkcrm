@@ -273,26 +273,44 @@ export default function EmailContacts() {
   }
 
   function handleFile(file: File) {
+    const isCsv = /\.csv$/i.test(file.name);
+
+    const finish = (wb: XLSX.WorkBook) => {
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+      if (!json.length) return toast.error("Planilha vazia");
+      const headers = Object.keys(json[0]).map(String);
+      setImportHeaders(headers);
+      setImportRows(json.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))));
+      const guessEmail = headers.find((h) => /e[\-_ ]?mail|email/i.test(h)) ?? headers[0];
+      const guessName = headers.find((h) => /nome|name/i.test(h)) ?? "";
+      setMapEmail(guessEmail);
+      setMapName(guessName);
+    };
+
+    const fail = (err: any) => toast.error("Falha ao ler planilha: " + (err?.message ?? err));
+
+    // CSV: leitura como texto (UTF-8) preserva acentos; readAsBinaryString
+    // quebrava nomes tipo "José" → "JosÃ©". Excel BR costuma exportar em
+    // Windows-1252 — se a leitura UTF-8 gerar U+FFFD, relê no charset legado.
+    const readCsv = (encoding?: string) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = String(e.target?.result ?? "");
+          if (!encoding && text.includes("�")) return readCsv("windows-1252");
+          finish(XLSX.read(text, { type: "string" }));
+        } catch (err) { fail(err); }
+      };
+      reader.readAsText(file, encoding);
+    };
+
+    if (isCsv) return readCsv();
     const reader = new FileReader();
     reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const wb = XLSX.read(data, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
-        if (!json.length) return toast.error("Planilha vazia");
-        const headers = Object.keys(json[0]).map(String);
-        setImportHeaders(headers);
-        setImportRows(json.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))));
-        const guessEmail = headers.find((h) => /e[\-_ ]?mail|email/i.test(h)) ?? headers[0];
-        const guessName = headers.find((h) => /nome|name/i.test(h)) ?? "";
-        setMapEmail(guessEmail);
-        setMapName(guessName);
-      } catch (err: any) {
-        toast.error("Falha ao ler planilha: " + err.message);
-      }
+      try { finish(XLSX.read(e.target?.result, { type: "array" })); } catch (err) { fail(err); }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   }
 
   async function doImport() {
@@ -316,24 +334,57 @@ export default function EmailContacts() {
         });
       if (!rows.length) { toast.error("Nenhum e-mail válido"); setImporting(false); return; }
 
-      const payload = rows.map((r) => ({
-        clinic_id: clinicId,
-        segment_id: importSegment && importSegment !== "__none" ? importSegment : null,
-        email: r.email,
-        name: r.name,
-        added_by: user?.id,
-      }));
-      const chunkSize = 500;
+      const segId = importSegment && importSegment !== "__none" ? importSegment : null;
+
+      // Diff contra o que já existe no destino: um único duplicado num INSERT
+      // em lote derruba o lote inteiro (UNIQUE segment_id+email / clinic+email
+      // sem segmento) e descartava os contatos novos daquele lote.
+      const existing = await fetchAllPaged<{ email: string }>(() => {
+        const q = supabase
+          .from("email_segment_contacts")
+          .select("email")
+          .eq("clinic_id", clinicId)
+          .order("id", { ascending: true });
+        return segId ? q.eq("segment_id", segId) : q.is("segment_id", null);
+      }, 1000, 200_000);
+      const existingSet = new Set(existing.map((r) => String(r.email).toLowerCase()));
+
+      const fresh = rows.filter((r) => !existingSet.has(r.email));
+      let dup = rows.length - fresh.length;
       let ok = 0, fail = 0;
-      for (let i = 0; i < payload.length; i += chunkSize) {
-        const chunk = payload.slice(i, i + chunkSize);
+
+      const chunkSize = 500;
+      for (let i = 0; i < fresh.length; i += chunkSize) {
+        const chunk = fresh.slice(i, i + chunkSize).map((r) => ({
+          clinic_id: clinicId,
+          segment_id: segId,
+          email: r.email,
+          name: r.name,
+          added_by: user?.id,
+        }));
         const { error } = await supabase.from("email_segment_contacts").insert(chunk);
-        if (error) fail += chunk.length; else ok += chunk.length;
+        if (!error) { ok += chunk.length; continue; }
+        // Lote recusado (ex.: duplicado legado com caixa alta) — insere um a um
+        // pra não descartar o resto do lote.
+        for (const row of chunk) {
+          const { error: e1 } = await supabase.from("email_segment_contacts").insert(row);
+          if (!e1) ok++;
+          else if ((e1 as any).code === "23505") dup++;
+          else fail++;
+        }
       }
-      toast.success(`${ok} importado(s)${fail ? ` · ${fail} falharam (duplicados?)` : ""}`);
+
+      const parts = [`${ok} importado(s)`];
+      if (dup) parts.push(`${dup} já existiam`);
+      if (fail) parts.push(`${fail} falharam`);
+      if (fail && !ok) toast.error(parts.join(" · "));
+      else toast.success(parts.join(" · "));
       setOpenImport(false);
       setImportRows([]); setImportHeaders([]); setMapEmail(""); setMapName(""); setImportSegment("");
       load();
+    } catch (e: any) {
+      console.error("[EmailContacts] import failed", e);
+      toast.error("Falha na importação: " + (e?.message ?? e));
     } finally {
       setImporting(false);
     }
