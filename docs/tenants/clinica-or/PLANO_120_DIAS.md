@@ -28,10 +28,10 @@ code_refs:
 > | **F3** limpar a coluna | ✅ 11:11 | **26 cards** devolvidos a *Paciente Ativo*. Inativo 469 → 443, Ativo 145 → 171. Backup em `_bkp_20260820_paciente_inativo` (469 linhas) |
 > | **F4** ligar as duas | ✅ 20/08 11:24 | As duas `enabled = true` em 2880h. Primeira hora: **zero runs, zero erros** — sem candidato até dezembro, como previsto |
 >
-> **3 cards ficaram de fora da F3 de propósito** — `Help Elevadores` (fornecedor),
-> `Ana Paula MK ART` (interno) e `Ivan` (provável Dr. Ivan). Violam a regra dos 120
-> dias mas não são pacientes: o destino certo é *Administrativo* ou
-> `is_internal_contact`, não a fila de trabalho.
+> **3 cards ficaram de fora da F3 por suspeita de não-paciente** — `Help Elevadores`,
+> `Ana Paula MK ART` e `Ivan`. O cliente depois confirmou que **Help Elevadores é
+> paciente** (o nome engana) e ele subiu para *Paciente Ativo* na limpeza fina;
+> os outros dois são adm/interno de verdade.
 >
 > **Efeito colateral aceito:** a F3 zera `stage_changed_at` dos 26. O relógio deles
 > recomeça hoje, então só retornam a *Paciente Inativo* em meados de dezembro, e não
@@ -450,6 +450,11 @@ Depois de ligar as regras, o cliente apontou cards com conversa recente ainda em
 3. **Critério final da coluna:** quem falou (inbound) nos últimos 120 dias não fica
    em *Paciente Inativo*. Agendamento e conversa contam; disparo da clínica sem
    resposta, não.
+4. **Dois retardatários às 11:57** — um lead **sem nome** (o `name not in (...)` do
+   move das 11:35 descarta linha com nome nulo — pegadinha de SQL) e
+   `Help Elevadores`, que o cliente confirmou ser paciente. Ambos para
+   *Paciente Ativo*. **Estado final: 339 em Paciente Inativo, zero violações;
+   273+2 em Paciente Ativo; 280 em Administrativo.**
 
 > Lição para a doc de motor: `is_internal_contact` é o terceiro mecanismo de
 > invisibilidade silenciosa encontrado num único dia (filtro de pipeline, perda de
