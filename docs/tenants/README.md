@@ -24,6 +24,12 @@ Para criar um agente novo para uma conta nova, siga o passo a passo em [`docs/pi
 |---|---|---|---|---|
 | `clinica-or` | `cf038458-457d-4c1a-9ac4-c88c3c8353a1` | `pipeline-classify` (compartilhada — arquitetura V6, 5 agentes) | Produção | [README](./clinica-or/README.md) |
 
+> **Entrada recomendada para a Clínica ÓR (20/08/2026):** a pasta do tenant está
+> majoritariamente desatualizada desde o Bloco B (13/08). Comece pela
+> [auditoria de 20/08](./clinica-or/auditoria-20-08-2026.md) — estado real verificado
+> contra banco e código — e pelo
+> [roadmap de atualização](../roadmap/ROADMAP_DOCS_OR_POS_BLOCO_B.md).
+
 > Novos tenants serão adicionados sobre o registry `pipeline_tenant_classifiers`. Roadmap vivo em [`docs/roadmap/PIPELINE_TENANT_ROADMAP.md`](../roadmap/PIPELINE_TENANT_ROADMAP.md).
 
 ## Estrutura padrão de cada tenant
