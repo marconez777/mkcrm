@@ -38,9 +38,22 @@ de Pacientes está **sem automação nenhuma desde o Bloco B**.
 
 ---
 
-## 1. A descoberta de hoje 🔴
+## 1. A descoberta de hoje 🔴 — **corrigida em 20/08 às 10:41**
 
-**`clinics.settings.ai_target_pipeline_ids` contém apenas o funil de Vendas.**
+> ✅ **Desfecho.** O funil de Pacientes (`0ac4e0ad-bf6b-46d7-85b7-2fafff493b96`) foi
+> acrescentado a `ai_target_pipeline_ids` e os **134 pacientes presos** foram
+> reprocessados via `notify_pipeline_deterministic`. *Paciente Inativo* caiu de
+> **603 para 481**; *Paciente Ativo* subiu para **145**. Zero presos restantes.
+>
+> ⚠️ Duas lições no reprocessamento: o filtro fica **30s em cache por instância**
+> da edge (esperar antes do backfill), e das 134 chamadas `pg_net` **12 não foram
+> entregues, sem deixar rastro** — só apareceram porque a contagem foi conferida.
+> É o achado A5 na prática. Bastou repetir o backfill.
+>
+> **Continua aberto:** A2 — as regras de 7d e 60d seguem desligadas, então
+> *Paciente Ativo* hoje **só enche**. Nada tira card de lá automaticamente.
+
+**`clinics.settings.ai_target_pipeline_ids` continha apenas o funil de Vendas.**
 
 ```
 [ { "funil": "Clínica ÓR — Vendas", "id": "17c27f4d-8256-4ea7-b5b9-ed706494f686" } ]
@@ -290,7 +303,7 @@ select jsonb_pretty(jsonb_build_object(
 
 | # | Achado | Gravidade |
 |---|---|---|
-| **A1** | Funil de Pacientes fora de `ai_target_pipeline_ids` — toda automação barrada desde 13/08; 134 pacientes presos | 🔴 |
+| ~~**A1**~~ | ~~Funil de Pacientes fora de `ai_target_pipeline_ids`~~ ✅ **resolvido 20/08 10:41** — funil marcado, 134 presos reprocessados | — |
 | **A2** | As 2 regras temporais do funil de Pacientes (7d e 60d) estão **desligadas** | 🔴 |
 | **A3** | `pipeline-auto-finalize-or` fecha consulta sozinho a cada 15 min — contradiz o fluxo alvo | 🟠 |
 | **A4** | Classifier gasta 5 agentes por lead e joga a saída do Movimentador fora | 🟠 |
