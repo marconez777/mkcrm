@@ -431,6 +431,30 @@ Enquanto isso, *Paciente Inativo* só esvazia: quem responde sai, ninguém entra
 
 ---
 
+## 13a. Limpeza fina de 20/08 — a coluna escondia gente
+
+Depois de ligar as regras, o cliente apontou cards com conversa recente ainda em
+*Paciente Inativo*. Três descobertas, em sequência:
+
+1. **95 leads** tinham `last_inbound_at` dentro de 120 dias mas ficaram de fora do
+   primeiro critério (que olhava agendamento, não conversa). Movidos para
+   *Paciente Ativo* às 11:35, com backup em `_bkp_20260820b_inativo_120d`.
+2. **`is_internal_contact = true` em pacientes reais.** Uma varredura de 15/06
+   marcou contatos internos por regex de nome, e a marcação pegou (ou foi aplicada
+   depois a) pacientes de verdade. Contato interno é **invisível para todas as
+   regras** — reativação, 120 dias, backfills. Oito pacientes desmarcados pelo
+   cliente: Bruninha Correa, ROCHA, Oneide Pereira, 11971765819, Marcelle,
+   Helton Rene, Valéria Godoy e Leonardo/Ariane Gonçalves. Os com conversa em 120
+   dias subiram para *Paciente Ativo*; o restante da lista era adm de verdade e foi
+   para *Administrativo*.
+3. **Critério final da coluna:** quem falou (inbound) nos últimos 120 dias não fica
+   em *Paciente Inativo*. Agendamento e conversa contam; disparo da clínica sem
+   resposta, não.
+
+> Lição para a doc de motor: `is_internal_contact` é o terceiro mecanismo de
+> invisibilidade silenciosa encontrado num único dia (filtro de pipeline, perda de
+> `pg_net`, contato interno). Nenhum dos três aparece em tela alguma.
+
 ## 13. Pendências que sobraram
 
 **3 cards não-pacientes em *Paciente Inativo*** — `Help Elevadores`,
