@@ -3,7 +3,7 @@ title: "Plano — regra de 120 dias para Paciente Inativo"
 topic: kanban
 kind: roadmap
 audience: both
-status: planejado
+status: vigente
 tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
 updated: 2026-08-20
@@ -26,7 +26,7 @@ code_refs:
 > | **F1** idempotência | ✅ 20/08 | Chave passa a incluir `stage_changed_at` — única por **estadia** na coluna. Deploy do `automations-tick` feito pelo Lovable, patch conferido no repositório (`cea2721c`). Nenhum lead chegou a ser bloqueado antes: nenhuma automação de `move_stage` jamais rodou nesta clínica |
 > | **F2** prazos → 2880h | ✅ 11:13 | As duas regras em `hours = 2880`, ainda `enabled = false` |
 > | **F3** limpar a coluna | ✅ 11:11 | **26 cards** devolvidos a *Paciente Ativo*. Inativo 469 → 443, Ativo 145 → 171. Backup em `_bkp_20260820_paciente_inativo` (469 linhas) |
-> | **F4** ligar as duas | ⏳ **pendente** | Depende da F1 — ver §13 |
+> | **F4** ligar as duas | ✅ 20/08 11:24 | As duas `enabled = true` em 2880h. Primeira hora: **zero runs, zero erros** — sem candidato até dezembro, como previsto |
 >
 > **3 cards ficaram de fora da F3 de propósito** — `Help Elevadores` (fornecedor),
 > `Ana Paula MK ART` (interno) e `Ivan` (provável Dr. Ivan). Violam a regra dos 120
@@ -431,7 +431,16 @@ Enquanto isso, *Paciente Inativo* só esvazia: quem responde sai, ninguém entra
 
 ---
 
-## 13. Pendência descoberta de raspão
+## 13. Pendências que sobraram
+
+**3 cards não-pacientes em *Paciente Inativo*** — `Help Elevadores`,
+`Ana Paula MK ART` e `Ivan`. Violam os 120 dias mas não são pacientes: o destino é
+*Administrativo* ou `is_internal_contact`.
+
+**Nomes das automações** — renomeadas em 20/08 para refletir 120 dias e o rótulo
+*Paciente Ativo*; os nomes antigos diziam "7d"/"60d" e "Reagendamento".
+
+**`ÓR — Sem Resposta 7d → Nutrição Inativa`** — ligada e nunca disparou
 
 `ÓR — Sem Resposta 7d → Nutrição Inativa` está **ligada** no funil de Vendas e
 **nunca disparou** — não tem uma linha em `automation_runs`, enquanto os follow-ups
