@@ -137,6 +137,39 @@ export type Database = {
         }
         Relationships: []
       }
+      _bkp_20260820b_inativo_120d: {
+        Row: {
+          clinic_id: string | null
+          id: string | null
+          last_inbound_at: string | null
+          last_message_at: string | null
+          pipeline_id: string | null
+          snapshot_at: string | null
+          stage_changed_at: string | null
+          stage_id: string | null
+        }
+        Insert: {
+          clinic_id?: string | null
+          id?: string | null
+          last_inbound_at?: string | null
+          last_message_at?: string | null
+          pipeline_id?: string | null
+          snapshot_at?: string | null
+          stage_changed_at?: string | null
+          stage_id?: string | null
+        }
+        Update: {
+          clinic_id?: string | null
+          id?: string | null
+          last_inbound_at?: string | null
+          last_message_at?: string | null
+          pipeline_id?: string | null
+          snapshot_at?: string | null
+          stage_changed_at?: string | null
+          stage_id?: string | null
+        }
+        Relationships: []
+      }
       agent_evals: {
         Row: {
           agent_id: string
