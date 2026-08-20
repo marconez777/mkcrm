@@ -208,6 +208,7 @@ Deno.serve(async (req) => {
       const result = await createClinicForNewUser(admin, {
         email: cli_email,
         name: cli_name,
+        knownUserId: userId,
       });
       if (!result.ok) {
         await logRow({ processed_status: "error", error_msg: `signup_failed:${result.error}` });
@@ -290,27 +291,37 @@ async function applyPlanToClinic(
   }).then(() => {}).catch(() => {});
 }
 
+async function findAuthUserIdByEmail(admin: any, email: string): Promise<string | null> {
+  // listUsers não filtra por email — pagina até achar (limite de segurança: 20k usuários)
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) return null;
+    const users = data?.users ?? [];
+    const found = users.find((u: any) => (u.email ?? "").toLowerCase() === email);
+    if (found) return found.id;
+    if (users.length < 1000) return null;
+  }
+  return null;
+}
+
 async function createClinicForNewUser(
   admin: any,
-  args: { email: string; name: string | null },
+  args: { email: string; name: string | null; knownUserId?: string | null },
 ): Promise<{ ok: true; user_id: string; clinic_id: string } | { ok: false; error: string }> {
   // 1) Create auth user (sends magic link / invite-style email)
   const fullName = args.name ?? args.email.split("@")[0];
-  const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";
-  const redirectTo = `${siteUrl}/auth`;
 
-  // Use generateLink so user gets an email to set password
-  const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(args.email, {
-    data: { full_name: fullName, source: "eduzz" },
-  });
-
-  let userId = invited?.user?.id;
-  if (inviteErr || !userId) {
-    // User may already exist in auth — fetch
-    const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    const existing = list?.users?.find((u: any) => (u.email ?? "").toLowerCase() === args.email);
-    if (!existing) return { ok: false, error: inviteErr?.message ?? "invite_failed" };
-    userId = existing.id;
+  let userId = args.knownUserId ?? undefined;
+  if (!userId) {
+    const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(args.email, {
+      data: { full_name: fullName, source: "eduzz" },
+    });
+    userId = invited?.user?.id;
+    if (inviteErr || !userId) {
+      // User may already exist in auth — fetch
+      userId = (await findAuthUserIdByEmail(admin, args.email)) ?? undefined;
+      if (!userId) return { ok: false, error: inviteErr?.message ?? "invite_failed" };
+    }
   }
 
   // 2) Ensure profile
