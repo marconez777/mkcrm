@@ -94,6 +94,27 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-15** 🟠 | trigger `check_clinic_bounce_health` | a cada bounce/complaint varre `email_logs ORDER BY created_at DESC LIMIT 1000` — sem índice em `created_at` | campanha grande gera bounces em rajada; cada um paga um sort da tabela |
 | **G-16** 🟠 | RLS restante | `email_unsubscribes`, `email_send_dedup`, `email_send_state`, `email_campaign_variants`, `email_templates`, `email_segments`, `email_campaigns`, `email_automations` ainda no padrão por linha | `email_unsubscribes` e `email_send_dedup` crescem 146k por campanha — são os próximos a estourar |
 | **G-17** 🟡 | `EmailContacts.tsx` | baixa leads + contatos inteiros e agrupa no navegador (`CONTACTS_HARD_CAP = 300k`) | 163 requisições e dezenas de segundos de carga; funciona, mas é o teto do desenho atual |
+| **G-18** 🔴 | `EmailQueue.tsx:56-63` | subscription realtime em `email_queue` **sem filtro de clínica e sem debounce**, e o handler refaz o `load()` com `count:"exact"` | cada e-mail passa por `pending→sending→sent` = 3 eventos. Campanha de 146k = **~438.000 recargas completas**; a aba trava em segundos |
+| **G-19** 🔴 | `EmailDashboard.tsx:160-176` | dois handlers realtime (`email_logs`, `email_queue`) sem filtro nem debounce, cada um refaz o `load()` que baixa até 50k linhas de log | durante o envio: ~100 recargas/min × 51 requisições ≈ **5.000 req/min** |
+| **G-20** 🔴 | `AutomationReportDialog.tsx:131-174` | quatro drenagens, duas por `.in()` sobre até 100k `lead_id` contra `email_logs.related_lead_id` e `email_queue.related_lead_id` — **sem índice** | um clique em "Relatório" ≈ **600 requisições** e centenas de milhões de linhas varridas; estoura e mostra tudo zero |
+| **G-21** 🔴 | `email_queue` sem índice em `related_lead_table` | Pausar/Retomar campanha faz `UPDATE … WHERE related_lead_table = 'campaign_x'` varrendo 146k linhas | **o botão Pausar estoura os 8s e não pausa** — a campanha continua enviando (`EmailCampaigns.tsx:259`, `CampaignLiveDialog.tsx:199`) |
+| **G-22** 🔴 | números silenciosamente errados | `EmailDashboard.tsx:139` (fila sem `.range()` → teto de 1.000), `useEmailMetrics.ts:33` (idem, corta os dias mais recentes), `CampaignRecipientsPreview` (teto de 100k), `resolve_email_segment_preview` (`LIMIT 5000` fixo), `EmailSegments.tsx:345` (supressões cortadas em 1.000) | a tela mostra "Pendentes: 812" com 146.000 travados; a prévia diz "5000 destinatários" para um público de 146k — **é esse número que decide o disparo** |
+| **G-23** 🔴 | `EmailUnsubscribes.tsx:54` | `delete().eq("email", …)` **sem `clinic_id`** | não é escala, é vazamento entre tenants: como super admin, remover um descadastro **apaga a supressão daquele e-mail em todas as clínicas** — o contato volta a receber onde pediu para sair |
+| **G-24** 🟠 | `EmailContacts.tsx:347-380` | importação faz 163 requisições de dedup e depois insere em chunks; **um duplicado derruba o chunk para inserção linha a linha** | melhor caso ~489 requisições; pior caso **163.000 requisições (~7h)**. `upsert … ignoreDuplicates` elimina os dois problemas |
+| **G-25** 🟠 | tratamento de erro do módulo | 8 arquivos fazem `{ data }` sem `error`; 5 chamam `fetchAllPaged` (que lança) sem `try/catch` | é a família do bug "1–6 de 6": a tela renderiza confiante cheia de zeros, ou o spinner nunca para. Corretos hoje: `EmailContacts`, `EmailCampaigns`, `CampaignRecipientsPreview`, `EmailLogs` |
+| **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
+| **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
+
+## 4b. Fora da fila: corrigir já
+
+**G-23** não é escala — é um vazamento entre tenants de uma linha de código
+(`EmailUnsubscribes.tsx:54`, falta `.eq("clinic_id", …)`). Enquanto existir,
+qualquer remoção de descadastro feita por um super admin reabre aquele e-mail
+em **todas** as clínicas. Não deve esperar fase nenhuma.
+
+**G-21** (Pausar que não pausa) é um índice. Se uma campanha de 146k precisar
+ser interrompida hoje, o botão falha em silêncio — só o `UPDATE` direto no SQL
+Editor resolve.
 
 ## 5. Fases
 
@@ -124,6 +145,7 @@ SQL pronto no §7.
 |---|---|---|---|
 | F1.1 | Migrar a RLS restante para InitPlan (`email_unsubscribes`, `email_send_dedup`, `email_send_state`, `email_campaign_variants`, `email_templates`, `email_segments`, `email_campaigns`, `email_automations`) | G-16 | baixo — semântica idêntica |
 | F1.2 | Índices `email_logs (created_at DESC)` e `email_logs (clinic_id, created_at DESC)` | G-11, G-15 | baixo |
+| F1.2b | Índice `email_queue (clinic_id, related_lead_table)` e `email_logs (clinic_id, related_lead_id)` | G-20, G-21 | baixo — destrava o botão Pausar |
 | F1.3 | Índice único em `email_operational_alerts` (tipo + clínica + hora) para o `ON CONFLICT` funcionar | G-12 | baixo — limpar duplicatas antes |
 | F1.4 | Retenção `cleanup_email_runtime()` + cron diário: `email_queue` sent >30d, `email_send_dedup` >90d, `resend_webhook_events` >30d, `campaign_throughput` >90d, `email_recipient_throttle` >7d, alertas resolvidos >30d. **`email_logs` fica** | G-10 | médio — janelas precisam de decisão do usuário |
 | F1.5 | `check_email_operational_health`: filtrar por `sent_at` (indexado) em vez de `created_at`, e rodar 1× a cada N ciclos | G-11 | baixo |
@@ -148,6 +170,10 @@ SQL pronto no §7.
 | F3.2 | `CampaignRecipientsPreview`: RPC `segment_preview(ids[], limit)` devolvendo **contagem + amostra de 20** | G-04 |
 | F3.3 | `EmailContacts`: paginação e busca **no servidor** | G-17 |
 | F3.4 | `CampaignReportDialog`: usar `report_campaign_stats` (já existe) em vez de baixar as linhas | — |
+| F3.6 | **Realtime com filtro de clínica + debounce de 5s** em `EmailQueue` e `EmailDashboard`; nunca refazer o `load()` inteiro no handler | G-18, G-19 |
+| F3.7 | RPC `automation_step_stats(automation_id)` no lugar das quatro drenagens do relatório de automação | G-20 |
+| F3.8 | Fim das truncagens silenciosas: contagem de fila por RPC `group by status`; `fetchAllPaged` devolvendo `{ rows, truncated }`; prévia devolvendo total real, não o `LIMIT 5000` | G-22, G-26 |
+| F3.9 | Importação por `upsert(onConflict: "segment_id,email", ignoreDuplicates)` — remove o dedup e o fallback linha a linha | G-24 |
 | F3.5 | Padrão para o módulo: `try/catch` que renderiza o que já tem e avisa, em vez de abortar (o bug do "1–6 de 6") | G-02 |
 
 ### Fase 4 — estrutural (decidir, não executar ainda)
@@ -225,6 +251,11 @@ limit 20;
 
 ## 8. Histórico
 
+- **2026-08-21 (2)** — varredura completa do frontend do módulo (24 arquivos):
+  G-18 a G-27. Achados que mudam a leitura: as subscriptions realtime sem
+  filtro são piores que qualquer drenagem de lista, vários números na tela
+  estão silenciosamente errados por truncagem, e o Pausar de campanha não
+  funciona em campanha grande.
 - **2026-08-21** — documento criado a partir do incidente do MCD. G-01 e G-02
   corrigidos no mesmo dia (migrations `20260821120000_esc_rls_initplan.sql` e
   `20260821150000_email_logs_queue_rls_initplan.sql`; commits `28ffb00a`,
