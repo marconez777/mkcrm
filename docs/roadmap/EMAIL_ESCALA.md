@@ -105,7 +105,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
 | **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
 | **G-28** ❌ | ~~`email_segment_contacts` sem unicidade dentro do segmento~~ | hipótese **descartada em 21/08**: o segmento "Desafio" tem 146.683 linhas e **146.683 e-mails distintos** | a lista não está duplicada. A falta de unicidade dentro do segmento continua existindo, mas não é o que aconteceu aqui |
-| **G-29** 🔴 | `dispatch-campaign/index.ts:145,157` (e `:126`) | **confirmado em 21/08.** Em toda paginação de destinatários, erro numa página faz `console.error` + **`break`** — a função segue com o público parcial e marca a campanha `sent`. O usuário relatou ter visto erro no disparo; o log ficou só no console da edge | as campanhas do MCD usavam **"Todos"** (público = 162.874 contatos da clínica) e registram **17.020 / 17.020 / 4.504**. Pontos de corte diferentes confirmam erro transitório engolido, não teto fixo. **~145 mil pessoas nunca receberam** e nada indicou falha na tela |
+| **G-29** 🔴 | `dispatch-campaign/index.ts:126,145,157` | **confirmado e medido em 21/08.** Em toda paginação de destinatários, erro numa página faz `console.error` + **`break`**: a função segue com público parcial e marca a campanha `sent`. O erro fica só no console da edge | público real **146.727** endereços distintos. Alcançado: *Aula Editora Digital* **17.020**, *convite dia 20 - ZAP* **17.020**, *Cidô Amazon* **4.504**. **129.707 e 142.223 pessoas nunca receberam**, sem nenhum sinal na tela |
 
 ## 4b. Fora da fila: corrigir já
 
@@ -116,8 +116,8 @@ clínicas. O `delete` agora usa o `clinic_id` da própria linha. Fica registrado
 como lembrete: **todo `delete`/`update` por e-mail nesse módulo precisa do par
 `(clinic_id, email)`** — a PK é composta.
 
-**G-29 — a campanha mente sobre ter sido enviada.** Medido em 21/08: segmento
-de 146.683 contatos, campanhas marcadas `sent` com 17.020 destinatários. A
+**G-29 — a campanha mente sobre ter sido enviada.** Medido em 21/08: público de
+146.727 endereços, campanhas marcadas `sent` alcançando 17.020, 17.020 e 4.504. A
 causa é o `break` silencioso em erro de página no `dispatch-campaign` — o
 conserto **não é SQL**, é o F2.1 (enfileirar por `INSERT … SELECT`, sem paginar,
 e falhar alto). O `ORDER BY` do F1.8 resolve um segundo problema, real e
@@ -159,7 +159,7 @@ SQL pronto no §7.
 |---|---|---|---|
 | F1.1 | Migrar a RLS restante para InitPlan (`email_unsubscribes`, `email_send_dedup`, `email_send_state`, `email_campaign_variants`, `email_templates`, `email_segments`, `email_campaigns`, `email_automations`) | G-16 | baixo — semântica idêntica |
 | F1.2 | Índices `email_logs (created_at DESC)` e `email_logs (clinic_id, created_at DESC)` | G-11, G-15 | baixo |
-| F1.2b | Índice `email_queue (clinic_id, related_lead_table)` e `email_logs (clinic_id, related_lead_id)` | G-20, G-21 | baixo — destrava o botão Pausar |
+| F1.2b ✅ | Índice `email_queue (clinic_id, related_lead_table)` e `email_logs (clinic_id, related_lead_table)` — aplicado 21/08 | G-20, G-21 | baixo — destrava o botão Pausar |
 | F1.3 | Índice único em `email_operational_alerts` (tipo + clínica + hora) para o `ON CONFLICT` funcionar | G-12 | baixo — limpar duplicatas antes |
 | F1.4 | Retenção `cleanup_email_runtime()` + cron diário: `email_queue` sent >30d, `email_send_dedup` >90d, `resend_webhook_events` >30d, `campaign_throughput` >90d, `email_recipient_throttle` >7d, alertas resolvidos >30d. **`email_logs` fica** | G-10 | médio — janelas precisam de decisão do usuário |
 | F1.5 | `check_email_operational_health`: filtrar por `sent_at` (indexado) em vez de `created_at`, e rodar 1× a cada N ciclos | G-11 | baixo |
