@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +111,8 @@ export default function EmailSegments() {
   const [previewSample, setPreviewSample] = useState<string[]>([]);
   const [previewing, setPreviewing] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [countsError, setCountsError] = useState(false);
+  const clinicIdRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState<{ loaded: number; total: number } | null>(null);
 
@@ -119,7 +121,7 @@ export default function EmailSegments() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user.id).limit(1).maybeSingle();
-      if (cm?.clinic_id) setClinicId(cm.clinic_id);
+      if (cm?.clinic_id) { setClinicId(cm.clinic_id); clinicIdRef.current = cm.clinic_id; }
     }
     const [{ data: segs, error }, { data: st }, leads] = await Promise.all([
       supabase.from("email_segments").select("*").order("created_at", { ascending: false }),
@@ -144,32 +146,29 @@ export default function EmailSegments() {
     setKnownUtm([...utm].sort());
     setLoading(false);
 
-    // contagem assíncrona por segmento — sem limite de 1000
+    // Contagem de todos os segmentos numa chamada. Antes, cada segmento
+    // dinâmico era contado paginando `resolve_email_segment` com .range() —
+    // e cada página recalcula o conjunto inteiro, porque o PostgREST aplica
+    // LIMIT/OFFSET por fora da função. Um segmento de 146k custava 147
+    // execuções completas, todas em paralelo (G-03 do EMAIL_ESCALA).
+    const cid = clinicIdRef.current;
+    if (!cid) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cnt, error: cntErr } = await supabase.rpc("email_segment_counts" as any, {
+      _clinic_id: cid,
+    });
+    if (cntErr) {
+      // Nunca cair para 0: um segmento com 146 mil pessoas aparecendo como
+      // vazio faz o operador achar que ele quebrou.
+      console.warn("[EmailSegments] contagem indisponível", cntErr);
+      setCountsError(true);
+      return;
+    }
+    setCountsError(false);
     const next: Record<string, number> = {};
-    await Promise.all(((segs as Segment[]) ?? []).map(async (s) => {
-      const f = normalizeFilters(s.filters);
-      if (f.kind === "static") {
-        // count exato direto na tabela de vínculos
-        const { count } = await supabase
-          .from("email_segment_contacts")
-          .select("id", { count: "exact", head: true })
-          .eq("segment_id", s.id);
-        next[s.id] = count ?? 0;
-      } else {
-        // dinâmico: pagina a RPC para escapar do default 1000
-        const set = new Set<string>();
-        const PAGE = 1000;
-        for (let offset = 0; offset < 200_000; offset += PAGE) {
-          const { data } = await supabase
-            .rpc("resolve_email_segment", { _segment_id: s.id })
-            .range(offset, offset + PAGE - 1);
-          const rows = (data as any[]) ?? [];
-          rows.forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
-          if (rows.length < PAGE) break;
-        }
-        next[s.id] = set.size;
-      }
-    }));
+    for (const row of ((cnt ?? []) as Array<{ segment_id: string; total: number | string }>)) {
+      next[row.segment_id] = Number(row.total);
+    }
     setCounts(next);
   }
   useEffect(() => { load(); }, []);
@@ -710,7 +709,7 @@ export default function EmailSegments() {
                         ? <span className="text-[hsl(var(--status-sending-fg))]">● Ativo</span>
                         : <span>○ Inativo</span>}
                       <span>·</span>
-                      <span>{counts[s.id] ?? "…"} destinatário(s)</span>
+                      <span>{countsError ? "contagem indisponível" : counts[s.id] !== undefined ? `${counts[s.id].toLocaleString("pt-BR")} destinatário(s)` : "…"}</span>
                       {f.rules.length > 0 && <span>· {f.rules.length} regra(s)</span>}
                     </div>
                   </div>

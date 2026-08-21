@@ -44,6 +44,8 @@ Números medidos no SQL Editor em 21/08/2026:
 | `email_segment_contacts` — ÓR | 692 |
 | `leads` com e-mail — MCD | **0** (a lista é toda importada, não vira lead) |
 | Envios/mês — MCD | ≈38.000 |
+| `email_logs` por clínica | MCD 39.489 · FXN 14.857 · ÓR 2.845 |
+| `email_queue` por clínica | MCD 43.052 · FXN 15.345 · ÓR 2.924 |
 | `statement_timeout` (`authenticated`) | **8s** |
 | Teto de linhas por resposta PostgREST | **1.000** |
 
@@ -79,7 +81,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 |---|---|---|---|
 | **G-01** ✅ | `email_segment_contacts` RLS | policy por linha | 500 na tela Contatos — **corrigido 21/08** |
 | **G-02** ✅ | `EmailCampaigns.load()` | baixava `email_logs` inteiro para contar | tela vazia — **corrigido 21/08** |
-| **G-03** 🔴 | `EmailSegments.tsx:154` | conta cada segmento paginando `resolve_email_segment` dentro de um `Promise.all` | segmento dinâmico de 146k = **146 execuções completas por segmento**, todas em paralelo → timeout garantido |
+| **G-03** ✅ | `EmailSegments.tsx:148-172` | contava cada segmento paginando `resolve_email_segment` dentro de um `Promise.all` — 147 execuções completas por segmento de 146k | **corrigido 21/08** pela RPC `email_segment_counts(clinic)`: uma chamada para todos os segmentos. Em falha mostra "contagem indisponível" em vez de **0** — um segmento de 146 mil aparecendo vazio fazia parecer quebrado |
 | **G-04** ✅ | `CampaignRecipientsPreview.tsx:42` | mesma paginação da RPC, por segmento da campanha | card "Destinatários" girava para sempre no MCD — **corrigido 21/08** pela RPC `email_segment_preview` (F3.2, commit `c57740cd`) |
 | **G-05** 🟠 | `dispatch-campaign/index.ts:118-306` | resolve **todos** os destinatários na memória do edge e insere em 146 chunks | precisa caber no wall-clock de uma invocação; se morrer no meio, a campanha fica `sending` com fila parcial e sem retomada |
 | **G-06** 🔴 | gates do `send-email` | 4 linhas quentes por envio: `email_send_state` (1/clínica), `email_domain_warmup` (**`SELECT … FOR UPDATE`**, 1/domínio), `email_recipient_throttle` (1/clínica+domínio+hora), `email_campaigns` (trigger `tg_email_queue_campaign_counters`, 1/campanha) | CONCURRENCY=5 × BATCH_PARALLELISM=5 = 25 envios paralelos que **serializam nos locks**; ~8-9 round-trips por e-mail ≈ **1,2M queries** por campanha de 146k |
@@ -217,7 +219,7 @@ removidas.
 
 | # | Ação | Gargalo |
 |---|---|---|
-| F3.1 | `EmailSegments`: RPC `segment_counts(clinic)` devolvendo a contagem de todos os segmentos numa query — nunca paginar `resolve_email_segment` para contar | G-03 |
+| F3.1 ✅ | `EmailSegments`: RPC `email_segment_counts(clinic)` devolvendo a contagem de todos os segmentos numa query. Aplicado 21/08 | G-03 |
 | F3.2 ✅ | `CampaignRecipientsPreview`: RPC `email_segment_preview(clinic, ids[], limit)` devolvendo **total + descadastrados + amostra** numa query (migration `20260821170000_email_segment_preview.sql`) | G-04 |
 | F3.3 | `EmailContacts`: paginação e busca **no servidor** | G-17 |
 | F3.4 | `CampaignReportDialog`: usar `report_campaign_stats` (já existe) em vez de baixar as linhas | — |
