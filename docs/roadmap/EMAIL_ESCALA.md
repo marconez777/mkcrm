@@ -177,15 +177,26 @@ linhas.
 
 | # | Ação | Gargalo | Risco |
 |---|---|---|---|
-| F1.1 | Migrar a RLS restante para InitPlan (`email_unsubscribes`, `email_send_dedup`, `email_send_state`, `email_campaign_variants`, `email_templates`, `email_segments`, `email_campaigns`, `email_automations`) | G-16 | baixo — semântica idêntica |
-| F1.2 | Índices `email_logs (created_at DESC)` e `email_logs (clinic_id, created_at DESC)` | G-11, G-15 | baixo |
+| F1.1 🔄 | Migrar a RLS restante para InitPlan (`email_unsubscribes`, `email_send_dedup`, `email_send_state`, `email_campaign_variants`, `email_templates`, `email_segments`, `email_campaigns`, `email_automations`) | G-16 | baixo — semântica idêntica |
+| F1.2 ✅ | Índices `email_logs (created_at DESC)` e `email_logs (clinic_id, created_at DESC)` | G-11, G-15 | baixo |
 | F1.2b ✅ | Índice `email_queue (clinic_id, related_lead_table)` e `email_logs (clinic_id, related_lead_table)` — aplicado 21/08 | G-20, G-21 | baixo — destrava o botão Pausar |
-| F1.3 | Índice único em `email_operational_alerts` (tipo + clínica + hora) para o `ON CONFLICT` funcionar | G-12 | baixo — limpar duplicatas antes |
-| F1.4 | Retenção `cleanup_email_runtime()` + cron diário: `email_queue` sent >30d, `email_send_dedup` >90d, `resend_webhook_events` >30d, `campaign_throughput` >90d, `email_recipient_throttle` >7d, alertas resolvidos >30d. **`email_logs` fica** | G-10 | médio — janelas precisam de decisão do usuário |
-| F1.5 | `check_email_operational_health`: filtrar por `sent_at` (indexado) em vez de `created_at`, e rodar 1× a cada N ciclos | G-11 | baixo |
+| F1.3 ✅ | Repetição de alerta resolvida por **guarda de 30 min por tipo** dentro do `check_email_operational_health` (índice único em `date_trunc` não é possível — a expressão não é IMMUTABLE) | G-12 | baixo |
+| F1.4 ✅ | Retenção `cleanup_email_runtime()` + cron diário: `email_queue` sent >30d, `email_send_dedup` >90d, `resend_webhook_events` >30d, `campaign_throughput` >90d, `email_recipient_throttle` >7d, alertas resolvidos >30d. **`email_logs` fica** | G-10 | médio — janelas precisam de decisão do usuário |
+| F1.5 ✅ | `check_email_operational_health`: filtrar por `sent_at` (indexado) em vez de `created_at`, e rodar 1× a cada N ciclos | G-11 | baixo |
 | F1.6 | `refresh_email_metrics_daily`: janela de 2d no cron de 15 min; 35d num cron diário | G-13 | baixo |
-| F1.7 | `autovacuum_vacuum_scale_factor = 0.01` nas tabelas de linha quente | G-06 | baixo |
+| F1.7 ✅ | `autovacuum_vacuum_scale_factor = 0.01` nas tabelas de linha quente | G-06 | baixo |
 | F1.8 ✅ | **`ORDER BY` determinístico em `resolve_email_segment`** (as duas ramificações) — sem isso a paginação por OFFSET **em disparo por segmento** perde linhas. Aplicado 21/08 | G-29 (parcial) | baixo — só ordena, não muda o conjunto |
+
+#### Resultado da Fase 1 (21/08/2026)
+
+Primeira execução de `cleanup_email_runtime()`: **6.920** linhas removidas de
+`email_queue` (enviados >30d) e **6.381** de `resend_webhook_events` (>30d). As
+demais tabelas ainda não tinham dado velho o bastante — o valor do item é
+preventivo, não a limpeza inicial. Cron `cleanup-email-runtime` às 03:40.
+
+Limpeza pontual dos alertas repetidos: mantida apenas a ocorrência mais recente
+por tipo/clínica; as repetições que o health check gerava a cada 10s foram
+removidas.
 
 ### Fase 2 — edge functions (via agente Lovable)
 
