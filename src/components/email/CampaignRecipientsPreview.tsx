@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Users, MailX, AlertCircle } from "lucide-react";
@@ -22,6 +21,8 @@ type State = {
 
 const INITIAL: State = { loading: false, error: null, total: 0, unsubscribed: 0, sample: [] };
 
+const SAMPLE_LIMIT = 10;
+
 export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
   const [state, setState] = useState<State>(INITIAL);
   const segKey = segmentIds.slice().sort().join(",");
@@ -31,86 +32,32 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
     async function run() {
       setState({ ...INITIAL, loading: true });
       try {
-        let recipients: Recipient[] = [];
+        // Contagem, supressões e amostra vêm prontas do servidor. Paginar
+        // `resolve_email_segment` daqui recalculava o público a cada página —
+        // numa lista de 146k a prévia nunca terminava (G-04 do EMAIL_ESCALA).
+        const { data, error } = await supabase.rpc("email_segment_preview" as any, {
+          _clinic_id: clinicId,
+          _segment_ids: segmentIds,
+          _sample_limit: SAMPLE_LIMIT,
+        });
+        if (error) throw error;
 
-        if (segmentIds.length > 0) {
-          // Pagina cada segmento e une os resultados (dedup mais abaixo).
-          const PAGE = 1000;
-          for (const segId of segmentIds) {
-            for (let offset = 0; offset < 200_000; offset += PAGE) {
-              const { data, error } = await supabase
-                .rpc("resolve_email_segment", { _segment_id: segId })
-                .range(offset, offset + PAGE - 1);
-              if (error) throw error;
-              const rows = (data ?? []) as any[];
-              recipients.push(...rows.map((r) => ({ email: r.email, name: r.name })));
-              if (rows.length < PAGE) break;
-            }
-          }
-        } else {
-          // Sem segmento = todos os leads da empresa com email + contatos manuais/importados
-          const [leadRows, manualRows] = await Promise.all([
-            fetchAllPaged<any>(() =>
-              supabase
-                .from("leads")
-                .select("email,name")
-                .eq("clinic_id", clinicId)
-                .not("email", "is", null)
-                .neq("email", "")
-            ),
-            fetchAllPaged<any>(() =>
-              supabase
-                .from("email_segment_contacts")
-                .select("email,name")
-                .eq("clinic_id", clinicId)
-            ),
-          ]);
-          recipients = [...leadRows, ...manualRows].map((r: any) => ({
-            email: String(r.email ?? "").toLowerCase(),
-            name: r.name,
-          }));
-        }
-
-
-
-        // Dedupe por email
-        const seen = new Set<string>();
-        const deduped: Recipient[] = [];
-        for (const r of recipients) {
-          const key = (r.email || "").toLowerCase();
-          if (!key || seen.has(key)) continue;
-          seen.add(key);
-          deduped.push({ ...r, email: key });
-        }
-
-        // Conta unsubscribes em chunks (evita URI muito longa e teto de 1000)
-        let unsubscribed = 0;
-        if (deduped.length > 0) {
-          const emails = deduped.map((r) => r.email);
-          const CHUNK = 500;
-          const found = new Set<string>();
-          for (let i = 0; i < emails.length; i += CHUNK) {
-            const slice = emails.slice(i, i + CHUNK);
-            const { data: unsubs, error: unsubErr } = await supabase
-              .from("email_unsubscribes")
-              .select("email")
-              .eq("clinic_id", clinicId)
-              .in("email", slice);
-            if (unsubErr) throw unsubErr;
-            for (const u of (unsubs ?? []) as any[]) {
-              found.add(String(u.email).toLowerCase());
-            }
-          }
-          unsubscribed = found.size;
-        }
+        const row = (data ?? {}) as {
+          total?: number;
+          unsubscribed?: number;
+          sample?: Array<{ email?: string; name?: string | null }>;
+        };
 
         if (cancelled) return;
         setState({
           loading: false,
           error: null,
-          total: deduped.length,
-          unsubscribed,
-          sample: deduped.slice(0, 10),
+          total: Number(row.total ?? 0),
+          unsubscribed: Number(row.unsubscribed ?? 0),
+          sample: (row.sample ?? []).map((r) => ({
+            email: String(r.email ?? ""),
+            name: r.name ?? null,
+          })),
         });
       } catch (e: any) {
         if (cancelled) return;
@@ -124,6 +71,7 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
   }, [clinicId, segKey]);
 
   const sendable = Math.max(0, state.total - state.unsubscribed);
+  const fmt = (n: number) => n.toLocaleString("pt-BR");
 
   return (
     <Card className="p-3 space-y-2 bg-muted/30">
@@ -140,12 +88,12 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
         ) : (
           <div className="flex gap-1.5">
             <Badge variant="secondary" className="text-[10px] tabular-nums">
-              {sendable} enviáveis
+              {fmt(sendable)} enviáveis
             </Badge>
             {state.unsubscribed > 0 && (
               <Badge variant="outline" className="text-[10px] tabular-nums gap-1">
                 <MailX className="h-2.5 w-2.5" />
-                {state.unsubscribed} descad.
+                {fmt(state.unsubscribed)} descad.
               </Badge>
             )}
           </div>
@@ -168,9 +116,9 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
               <span className="text-muted-foreground truncate">{r.name ?? "—"}</span>
             </div>
           ))}
-          {state.total > state.sample.length && (
+          {sendable > state.sample.length && (
             <p className="text-[10px] text-muted-foreground pt-1">
-              … e mais {state.total - state.sample.length}
+              … e mais {fmt(sendable - state.sample.length)}
             </p>
           )}
         </div>
