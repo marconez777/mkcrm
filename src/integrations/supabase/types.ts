@@ -7532,6 +7532,8 @@ export type Database = {
       }
       _email_segment_rule_to_sql: { Args: { _rule: Json }; Returns: string }
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
+      accessible_clinic_ids: { Args: { _feature?: string }; Returns: string[] }
+      admin_clinic_ids: { Args: { _feature?: string }; Returns: string[] }
       admin_clinic_usage: { Args: { _clinic: string }; Returns: Json }
       admin_daily_metrics: {
         Args: { _days?: number }
@@ -7747,6 +7749,14 @@ export type Database = {
         Args: { _clinic_id: string; _phone: string }
         Returns: undefined
       }
+      campaign_send_counts: {
+        Args: { _campaign_ids: string[]; _clinic_id: string }
+        Returns: {
+          campaign_id: string
+          failed: number
+          sent: number
+        }[]
+      }
       cancel_pending_emails_for: {
         Args: { _clinic_id: string; _email: string }
         Returns: number
@@ -7790,6 +7800,7 @@ export type Database = {
         }[]
       }
       cleanup_agent_caches: { Args: never; Returns: undefined }
+      cleanup_email_runtime: { Args: never; Returns: Json }
       cleanup_g10_expired: { Args: never; Returns: number }
       cleanup_stale_ai_agent_drafts: { Args: never; Returns: number }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
@@ -7824,6 +7835,14 @@ export type Database = {
           slug: string
         }[]
       }
+      email_segment_preview: {
+        Args: {
+          _clinic_id: string
+          _sample_limit?: number
+          _segment_ids?: string[]
+        }
+        Returns: Json
+      }
       engagement_broadcasts_summary: {
         Args: { _from: string; _to: string }
         Returns: {
@@ -7855,6 +7874,10 @@ export type Database = {
           sequence_id: string
           sequence_name: string
         }[]
+      }
+      enqueue_campaign_recipients: {
+        Args: { _campaign_id: string }
+        Returns: Json
       }
       enqueue_email: {
         Args: {
