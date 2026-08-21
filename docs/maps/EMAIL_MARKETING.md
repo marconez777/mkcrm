@@ -23,12 +23,17 @@ code_refs:
   - supabase/functions/outreach-recovery-tick/
   - supabase/functions/_shared/email.ts
 related_docs:
+  - docs/roadmap/EMAIL_ESCALA.md
   - docs/maps/AUTOMATIONS.md
   - docs/maps/BROADCASTS.md
   - docs/maps/PIPELINE_RUNTIME.md
 ---
 
 # Email Marketing — Mapa Runtime
+
+> Escala: os gargalos conhecidos do módulo com lista grande (163k contatos do
+> MCD) estão em [`docs/roadmap/EMAIL_ESCALA.md`](../roadmap/EMAIL_ESCALA.md) —
+> consulte antes de mexer em consulta, policy ou tela deste módulo.
 
 Provedor único: **Resend** (via API pública ou key por clínica em
 `clinic_email_integrations`). O sistema é **multi-tenant por `clinic_id`**,

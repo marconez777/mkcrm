@@ -1,0 +1,233 @@
+---
+title: "Roadmap: e-mail em escala (lista de 163k)"
+topic: email
+kind: roadmap
+audience: agent
+status: proposto
+updated: 2026-08-21
+summary: "Gargalos do módulo de e-mail medidos contra a régua do tenant MCD (162.874 contatos, campanhas de ~146k). Cobre RLS por linha, telas que baixam a base inteira, os quatro locks que serializam o envio, os tetos de warm-up/throttle/cota, e a ausência total de retenção. Fases 0-4, da SQL pura ao estrutural."
+code_refs:
+  - src/pages/email/
+  - src/components/email/
+  - supabase/functions/process-email-queue/index.ts
+  - supabase/functions/dispatch-campaign/index.ts
+  - supabase/functions/send-email/index.ts
+related_docs:
+  - docs/maps/EMAIL_MARKETING.md
+  - docs/roadmap/CLOUD_COST_REDUCTION.md
+  - docs/roadmap/MIGRACAO_SUPABASE.md
+---
+
+# Roadmap — e-mail em escala
+
+## 1. Por que este documento existe
+
+Em **21/08/2026** a tela `Email > Contatos` do tenant MCD parou de carregar:
+`HEAD /rest/v1/email_segment_contacts?select=id&clinic_id=eq.<mcd>` devolvia
+**500**. A causa não era a tela — era a policy RLS avaliada por linha estourando
+o `statement_timeout` de 8s. Na mesma sessão, `Email > Campanhas` mostrava
+"1–6 de 6" com a tabela vazia: o `load()` abortava ao baixar todas as linhas de
+`email_logs` para contar enviados.
+
+Os dois eram sintomas do mesmo fato: **o módulo foi escrito para listas de
+centenas de contatos e o MCD trouxe 163 mil**. Este roadmap mapeia onde mais
+isso dói e em que ordem atacar.
+
+## 2. A régua
+
+Números medidos no SQL Editor em 21/08/2026:
+
+| Métrica | Valor |
+|---|---|
+| `email_segment_contacts` — MCD | **162.874** |
+| `email_segment_contacts` — FXN Capital | 14.350 |
+| `email_segment_contacts` — ÓR | 692 |
+| `leads` com e-mail — MCD | **0** (a lista é toda importada, não vira lead) |
+| Envios/mês — MCD | ≈38.000 |
+| `statement_timeout` (`authenticated`) | **8s** |
+| Teto de linhas por resposta PostgREST | **1.000** |
+
+Regra de bolso derivada: **uma campanha de 146k destinatários escreve ~440 mil
+linhas** — 146k em `email_queue`, 146k em `email_logs`, 146k em
+`email_send_dedup` — e nenhuma delas é apagada depois (§4, G-10).
+
+## 3. Mecânica que explica quase todos os gargalos
+
+Três fatos técnicos, repetidos em lugares diferentes do código:
+
+1. **RLS `SECURITY DEFINER` não inlina.** Uma policy
+   `USING (has_clinic_access(clinic_id) AND clinic_has_feature(clinic_id, …))`
+   executa as duas funções **por linha**. Em 163k linhas isso é meio milhão de
+   subconsultas — `count(*)` e páginas com OFFSET alto estouram os 8s.
+   A forma que roda **uma vez por query** é
+   `clinic_id = ANY ((SELECT public.accessible_clinic_ids('email_marketing'))::uuid[])`
+   (InitPlan). O cast `::uuid[]` é obrigatório: sem ele o Postgres lê
+   `ANY(subquery)` e falha com 42883.
+2. **`supabase.rpc(fn).range(a,b)` não pagina dentro da função.** O PostgREST
+   envolve a chamada e aplica `LIMIT/OFFSET` ao resultado — a função **recalcula
+   o conjunto inteiro a cada página**. Paginar uma RPC de 146k linhas em páginas
+   de 1.000 custa **146 execuções completas**: é quadrático, não linear.
+3. **Linha quente serializa.** Todo `UPDATE` numa mesma linha espera o anterior.
+   O caminho de envio tem quatro dessas (§4, G-06) — o teto de throughput real
+   não é o Resend, são os locks.
+
+## 4. Mapa dos gargalos
+
+Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 custo/dívida.
+
+| # | Onde | O que acontece | Custo na régua MCD |
+|---|---|---|---|
+| **G-01** ✅ | `email_segment_contacts` RLS | policy por linha | 500 na tela Contatos — **corrigido 21/08** |
+| **G-02** ✅ | `EmailCampaigns.load()` | baixava `email_logs` inteiro para contar | tela vazia — **corrigido 21/08** |
+| **G-03** 🔴 | `EmailSegments.tsx:154` | conta cada segmento paginando `resolve_email_segment` dentro de um `Promise.all` | segmento dinâmico de 146k = **146 execuções completas por segmento**, todas em paralelo → timeout garantido |
+| **G-04** 🟠 | `CampaignRecipientsPreview.tsx:42` | mesma paginação da RPC, por segmento da campanha | 146 execuções + dedup de 146k no navegador antes de liberar o disparo |
+| **G-05** 🟠 | `dispatch-campaign/index.ts:118-306` | resolve **todos** os destinatários na memória do edge e insere em 146 chunks | precisa caber no wall-clock de uma invocação; se morrer no meio, a campanha fica `sending` com fila parcial e sem retomada |
+| **G-06** 🔴 | gates do `send-email` | 4 linhas quentes por envio: `email_send_state` (1/clínica), `email_domain_warmup` (**`SELECT … FOR UPDATE`**, 1/domínio), `email_recipient_throttle` (1/clínica+domínio+hora), `email_campaigns` (trigger `tg_email_queue_campaign_counters`, 1/campanha) | CONCURRENCY=5 × BATCH_PARALLELISM=5 = 25 envios paralelos que **serializam nos locks**; ~8-9 round-trips por e-mail ≈ **1,2M queries** por campanha de 146k |
+| **G-07** 🟠 | `claim_recipient_throttle` | teto **fixo** de 1.000/hora por domínio de destino (hardcoded na chamada em `send-email`) | lista majoritariamente Gmail: 87k gmail ÷ 1.000/h ≈ **88 horas** de campanha. Existe escape (`clinics.settings.email.throttle_recipient_enabled=false`), mas desligar mexe com reputação |
+| **G-08** 🟠 | `claim_domain_warmup` | cap por idade do domínio: dia 0=50, 1=100, 2=500, 3=1.000, 4-6=5.000, 7-10=10.000, 11-13=25.000, 14+=livre | domínio novo **não envia 146k antes do 14º dia**; o do MCD está `partially_verified` |
+| **G-09** 🟠 | `clinic_email_quota` | default **1.000/dia** quando `clinics.settings.email.quota_daily` não está setado | com o default, uma campanha de 146k levaria 146 dias. Confirmar na Fase 0 |
+| **G-10** 🔴 | todas as tabelas do módulo | **nenhuma retenção** — não existe `cleanup_email_*` em migration alguma | ~440k linhas por campanha, para sempre; alimenta direto o problema de disco do [CLOUD_COST_REDUCTION](./CLOUD_COST_REDUCTION.md) |
+| **G-11** 🔴 | `check_email_operational_health()` | roda ao fim de **cada** ciclo de `process-email-queue`; faz `COUNT(*)` da fila e `GROUP BY` em `email_logs WHERE created_at >= now()-24h` — **não existe índice em `created_at`** → seq scan | com o self-trigger encadeado, é um seq scan da tabela de logs a cada poucos segundos durante a campanha |
+| **G-12** 🟠 | `email_operational_alerts` | `ON CONFLICT DO NOTHING` **sem índice único** → nunca suprime nada | `pending > 500` fica verdadeiro por horas: **uma linha de alerta por execução**, sem teto |
+| **G-13** 🟠 | `refresh_email_metrics_daily(35)` | cron de 15 min re-agrega **35 dias** de `email_logs` sem filtro de clínica; os índices são todos `(clinic_id, …)` e não servem | seq scan a cada 15 min, crescendo com o volume de logs |
+| **G-14** 🟡 | `process-email-queue/index.ts:36-52` | claim em dois passos (`select … limit 1000` → `update … in(ids)`) e o resultado do update **não é verificado** | duas execuções concorrentes processam os mesmos 1.000 jobs; a correção do envio é salva pelo `email_send_dedup`, mas o trabalho (e os gates) é feito em dobro |
+| **G-15** 🟠 | trigger `check_clinic_bounce_health` | a cada bounce/complaint varre `email_logs ORDER BY created_at DESC LIMIT 1000` — sem índice em `created_at` | campanha grande gera bounces em rajada; cada um paga um sort da tabela |
+| **G-16** 🟠 | RLS restante | `email_unsubscribes`, `email_send_dedup`, `email_send_state`, `email_campaign_variants`, `email_templates`, `email_segments`, `email_campaigns`, `email_automations` ainda no padrão por linha | `email_unsubscribes` e `email_send_dedup` crescem 146k por campanha — são os próximos a estourar |
+| **G-17** 🟡 | `EmailContacts.tsx` | baixa leads + contatos inteiros e agrupa no navegador (`CONTACTS_HARD_CAP = 300k`) | 163 requisições e dezenas de segundos de carga; funciona, mas é o teto do desenho atual |
+
+## 5. Fases
+
+Ordem deliberada: **medir → SQL puro → edge → telas → estrutural**. As duas
+primeiras não exigem deploy — o acesso disponível é só o SQL Editor do Lovable
+Cloud; edge function só sobe pedindo ao agente do Lovable.
+
+### Fase 0 — medir (não altera nada)
+
+Antes de otimizar, confirmar contra a produção: o repositório **não reproduz o
+banco** (achado de [MIGRACAO_SUPABASE](./MIGRACAO_SUPABASE.md)).
+
+- **F0.1** Tamanho das 22 tabelas do módulo (`pg_total_relation_size`).
+- **F0.2** Policies vigentes (`pg_policy`) — quais ainda são por linha.
+- **F0.3** Índices vigentes (`pg_indexes`) e uso real (`pg_stat_user_indexes`).
+- **F0.4** Tetos configurados: `clinics.settings->'email'` do MCD (`quota_daily`,
+  `throttle_recipient_enabled`), idade/cap em `email_domain_warmup`,
+  `email_domains.status`.
+- **F0.5** Distribuição de domínio de destino da lista — define o custo real do G-07.
+- **F0.6** Crons de e-mail (`cron.job`) e volume de `email_operational_alerts`
+  (mede o G-12).
+
+SQL pronto no §7.
+
+### Fase 1 — SQL puro, sem deploy
+
+| # | Ação | Gargalo | Risco |
+|---|---|---|---|
+| F1.1 | Migrar a RLS restante para InitPlan (`email_unsubscribes`, `email_send_dedup`, `email_send_state`, `email_campaign_variants`, `email_templates`, `email_segments`, `email_campaigns`, `email_automations`) | G-16 | baixo — semântica idêntica |
+| F1.2 | Índices `email_logs (created_at DESC)` e `email_logs (clinic_id, created_at DESC)` | G-11, G-15 | baixo |
+| F1.3 | Índice único em `email_operational_alerts` (tipo + clínica + hora) para o `ON CONFLICT` funcionar | G-12 | baixo — limpar duplicatas antes |
+| F1.4 | Retenção `cleanup_email_runtime()` + cron diário: `email_queue` sent >30d, `email_send_dedup` >90d, `resend_webhook_events` >30d, `campaign_throughput` >90d, `email_recipient_throttle` >7d, alertas resolvidos >30d. **`email_logs` fica** | G-10 | médio — janelas precisam de decisão do usuário |
+| F1.5 | `check_email_operational_health`: filtrar por `sent_at` (indexado) em vez de `created_at`, e rodar 1× a cada N ciclos | G-11 | baixo |
+| F1.6 | `refresh_email_metrics_daily`: janela de 2d no cron de 15 min; 35d num cron diário | G-13 | baixo |
+| F1.7 | `autovacuum_vacuum_scale_factor = 0.01` nas tabelas de linha quente | G-06 | baixo |
+
+### Fase 2 — edge functions (via agente Lovable)
+
+| # | Ação | Gargalo |
+|---|---|---|
+| F2.1 | `dispatch-campaign`: enfileirar **no banco** (`INSERT … SELECT` a partir de `resolve_email_segment`) em vez de trazer 146k para a memória do edge; ou fatiar em invocações retomáveis com cursor na campanha | G-05 |
+| F2.2 | `process-email-queue`: claim atômico via RPC com `FOR UPDATE SKIP LOCKED` devolvendo os jobs já marcados | G-14 |
+| F2.3 | Gates em lote: RPC `claim_send_slots(clinic, domain, dest_domains[], n)` resolvendo cota + warm-up + throttle por lote em vez de por e-mail | G-06 |
+| F2.4 | Contadores de campanha por agregação periódica, ou trigger `FOR EACH STATEMENT` | G-06 |
+| F2.5 | `send-email`: token de unsubscribe e lookup de suppression por lote | G-06 |
+
+### Fase 3 — telas
+
+| # | Ação | Gargalo |
+|---|---|---|
+| F3.1 | `EmailSegments`: RPC `segment_counts(clinic)` devolvendo a contagem de todos os segmentos numa query — nunca paginar `resolve_email_segment` para contar | G-03 |
+| F3.2 | `CampaignRecipientsPreview`: RPC `segment_preview(ids[], limit)` devolvendo **contagem + amostra de 20** | G-04 |
+| F3.3 | `EmailContacts`: paginação e busca **no servidor** | G-17 |
+| F3.4 | `CampaignReportDialog`: usar `report_campaign_stats` (já existe) em vez de baixar as linhas | — |
+| F3.5 | Padrão para o módulo: `try/catch` que renderiza o que já tem e avisa, em vez de abortar (o bug do "1–6 de 6") | G-02 |
+
+### Fase 4 — estrutural (decidir, não executar ainda)
+
+- **Segmento materializado**: `email_segment_members(segment_id, email, name, lead_id)`
+  mantida por refresh, substituindo `resolve_email_segment` no caminho quente.
+  Resolve G-03, G-04 e G-05 de uma vez.
+- **Envio por lote como padrão** no provedor, não como agrupamento oportunista.
+- **Particionamento de `email_logs`** por mês, se a retenção não bastar.
+
+## 6. Invariantes (não regredir)
+
+- Policy de tabela grande **sempre** na forma InitPlan com `::uuid[]`.
+- Nenhuma tela do módulo baixa lista de destinatários para contar — contagem é
+  do servidor.
+- `resolve_email_segment` **nunca** é paginada por `.range()` em loop: cada
+  página recalcula tudo.
+- `email_send_dedup` é o que garante que ninguém receba duas vezes: não remover
+  o gate, mesmo "otimizando".
+- Retenção nunca apaga `email_logs` sem decisão explícita — é a base dos
+  relatórios.
+
+## 7. Apêndice — SQL da Fase 0
+
+```sql
+-- F0.1 tamanho das tabelas do modulo
+select 'tamanho' as tipo, relname as chave,
+       pg_size_pretty(pg_total_relation_size(relid)) as valor
+from pg_stat_user_tables
+where relname like 'email%' or relname in ('resend_webhook_events','campaign_throughput')
+union all
+-- F0.2 policies ainda por linha
+select 'policy', (polrelid::regclass)::text || '.' || polname,
+       coalesce(pg_get_expr(polqual, polrelid), '')
+from pg_policy
+where (polrelid::regclass)::text like '%email%'
+union all
+-- F0.3 indices existentes
+select 'indice', tablename || '.' || indexname, ''
+from pg_indexes
+where schemaname = 'public'
+  and (tablename like 'email%' or tablename in ('resend_webhook_events','campaign_throughput'))
+union all
+-- F0.4 tetos configurados
+select 'config', 'settings.email', coalesce((settings->'email')::text, '(vazio)')
+from public.clinics where slug = 'mcd'
+union all
+select 'config', 'warmup:' || domain,
+       'iniciado ' || started_at::date || ' enviados_hoje ' || sent_today || ' ativo ' || enabled
+from public.email_domain_warmup
+union all
+select 'config', 'dominio:' || domain, status
+from public.email_domains
+union all
+-- F0.6 crons e volume de alertas
+select 'cron', jobname, schedule from cron.job where command ilike '%email%'
+union all
+select 'alertas', alert_type, count(*)::text
+from public.email_operational_alerts group by alert_type
+order by 1, 2;
+```
+
+```sql
+-- F0.5 distribuicao de dominio de destino (define o custo do G-07)
+select lower(split_part(email, '@', 2)) as dominio,
+       count(*) as contatos,
+       round(count(*) * 100.0 / sum(count(*)) over (), 1) as pct,
+       ceil(count(*) / 1000.0) as horas_no_throttle_atual
+from public.email_segment_contacts
+where clinic_id = (select id from public.clinics where slug = 'mcd')
+group by 1
+order by 2 desc
+limit 20;
+```
+
+## 8. Histórico
+
+- **2026-08-21** — documento criado a partir do incidente do MCD. G-01 e G-02
+  corrigidos no mesmo dia (migrations `20260821120000_esc_rls_initplan.sql` e
+  `20260821150000_email_logs_queue_rls_initplan.sql`; commits `28ffb00a`,
+  `d0e8f43a`, `b7df98f2`). Os demais itens foram **levantados por leitura de
+  código, não medidos em produção** — a Fase 0 existe para confirmar antes de
+  executar.

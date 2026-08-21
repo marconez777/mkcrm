@@ -56,6 +56,9 @@ tabelas, invariantes e dívidas técnicas. Comece por aqui.
 
 ## Roadmaps
 
+- [`roadmap/EMAIL_ESCALA.md`](./roadmap/EMAIL_ESCALA.md) — gargalos do módulo de
+  e-mail na régua do MCD (163k contatos): RLS por linha, telas que baixam a
+  base, locks do envio, retenção inexistente.
 - `docs/i18n/ROADMAP.md` — F-INTL (multi-região BR/ES/US).
 - `docs/roadmap/META_API.md` (se presente) — F-META (WhatsApp Cloud API).
 
