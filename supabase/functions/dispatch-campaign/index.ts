@@ -105,63 +105,7 @@ Deno.serve(async (req) => {
       .update({ status: "sending", updated_at: new Date().toISOString() })
       .eq("id", campaign_id);
 
-    // Resolve recipients (com paginação para escalar >1000)
-    let recipients: Array<{ email: string; name: string | null; lead_id: string | null }> = [];
-    const seen = new Set<string>();
-    const pushRec = (email: string, name: string | null, lead_id: string | null) => {
-      const k = String(email ?? "").toLowerCase();
-      if (!k || !/@/.test(k) || seen.has(k)) return;
-      seen.add(k);
-      recipients.push({ email: k, name, lead_id });
-    };
-
-    if (segmentIds.length > 0) {
-      // Para cada segmento, pagina o resultado da RPC e une (dedup por email via pushRec).
-      const PAGE = 1000;
-      for (const segId of segmentIds) {
-        for (let offset = 0; ; offset += PAGE) {
-          const { data: resolved, error: rErr } = await supabase
-            .rpc("resolve_email_segment", { _segment_id: segId })
-            .range(offset, offset + PAGE - 1);
-          if (rErr) { console.error("resolve_email_segment error:", rErr, "segment:", segId); break; }
-          const rows = (resolved as any[]) ?? [];
-          for (const r of rows) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
-          if (rows.length < PAGE) break;
-          if (offset + PAGE >= 200_000) break; // safety cap
-        }
-      }
-    } else {
-
-      // "Todos os leads" — paginar para suportar >1000 (limite default do PostgREST)
-      const PAGE = 1000;
-      for (let offset = 0; ; offset += PAGE) {
-        const { data: leads, error } = await supabase
-          .from("leads")
-          .select("id, email, name")
-          .eq("clinic_id", campaign.clinic_id)
-          .not("email", "is", null)
-          .order("id", { ascending: true })
-          .range(offset, offset + PAGE - 1);
-        if (error) { console.error("leads page error:", error); break; }
-        for (const l of (leads ?? [])) pushRec((l as any).email ?? "", (l as any).name ?? null, (l as any).id ?? null);
-        if (!leads || leads.length < PAGE) break;
-      }
-      // contatos manuais (geralmente bem menor — uma página)
-      for (let offset = 0; ; offset += PAGE) {
-        const { data: manual, error } = await supabase
-          .from("email_segment_contacts")
-          .select("email, name, lead_id")
-          .eq("clinic_id", campaign.clinic_id)
-          .order("id", { ascending: true })
-          .range(offset, offset + PAGE - 1);
-        if (error) { console.error("manual page error:", error); break; }
-        for (const c of (manual ?? [])) pushRec((c as any).email ?? "", (c as any).name ?? null, (c as any).lead_id ?? null);
-        if (!manual || manual.length < PAGE) break;
-      }
-    }
-
-
-    // R-4: Pre-checks (uma vez, não por destinatário)
+    // R-4: Pre-checks (uma vez, antes de enfileirar)
     // 1) Feature gate
     const { data: hasFeat } = await supabase.rpc("clinic_has_feature", {
       _clinic_id: campaign.clinic_id, _key: "email_marketing",
@@ -187,141 +131,34 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "template_inactive" }, { status: 412 });
     }
 
-    // R-20: carrega variantes A/B (se houver)
-    let variants: Array<{
-      id: string;
-      weight: number;
-      subject_override: string | null;
-      template_slug_override: string | null;
-      from_name_override: string | null;
-    }> = [];
-    if ((campaign.variant_strategy ?? "none") !== "none") {
-      const { data: vs } = await supabase
-        .from("email_campaign_variants")
-        .select("id, weight, subject_override, template_slug_override, from_name_override")
-        .eq("campaign_id", campaign_id);
-      variants = (vs as any[]) ?? [];
-    }
-    const totalWeight = variants.reduce((s, v) => s + Math.max(v.weight ?? 1, 1), 0);
-    const pickVariant = (idx: number) => {
-      if (!variants.length) return null;
-      // round-robin ponderado determinístico
-      const slot = idx % totalWeight;
-      let acc = 0;
-      for (const v of variants) {
-        acc += Math.max(v.weight ?? 1, 1);
-        if (slot < acc) return v;
-      }
-      return variants[0];
-    };
+    // G-05/G-29/F2.1: toda a resolução de público, dedup, variantes A/B,
+    // rotação de domínio e throttling acontecem no banco, em uma transação.
+    const { data: res, error: enqErr } = await supabase
+      .rpc("enqueue_campaign_recipients", { _campaign_id: campaign_id });
 
-    // R-18: throttling — espalha scheduled_at se send_rate_per_minute estiver definido
-    const baseTime = Date.now();
-    const ratePerMin = Number(campaign.send_rate_per_minute ?? 0) || 0;
-    const scheduleFor = (idx: number) => {
-      if (!ratePerMin || ratePerMin <= 0) return new Date(baseTime).toISOString();
-      const minuteOffset = Math.floor(idx / ratePerMin);
-      return new Date(baseTime + minuteOffset * 60_000).toISOString();
-    };
-
-    // R-4: batch INSERT em chunks grandes
-    const fromOverrideBase = campaign.from_name_override ?? null;
-    const fromDomainPool = (campaign.from_domain_pool ?? "").trim() || null;
-    const relatedTable = `campaign_${campaign_id}`;
-    const CHUNK = 1000;
-    let enqueued = 0;
-
-    // R-21 (O(1) por destinatário): carrega pool de domínios UMA VEZ
-    // e distribui round-robin ponderado em memória — evita 1 RPC por contato.
-    let rotationDomains: string[] = []; // já "expandido" por peso
-    if (fromDomainPool) {
-      const { data: pool } = await supabase
-        .from("email_domains")
-        .select("domain, rotation_weight, status")
-        .eq("clinic_id", campaign.clinic_id)
-        .eq("rotation_pool", fromDomainPool)
-        .in("status", ["verified", "partially_verified"]);
-      for (const d of (pool ?? []) as any[]) {
-        const w = Math.max(parseInt(String(d.rotation_weight ?? 1), 10) || 1, 1);
-        for (let k = 0; k < w; k++) rotationDomains.push(String(d.domain));
-      }
-      // shuffle leve pra não começar sempre pelo mesmo
-      for (let i = rotationDomains.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [rotationDomains[i], rotationDomains[j]] = [rotationDomains[j], rotationDomains[i]];
-      }
-    }
-    const pickDomain = (idx: number): string | null =>
-      rotationDomains.length ? rotationDomains[idx % rotationDomains.length] : null;
-
-    for (let i = 0; i < recipients.length; i += CHUNK) {
-      const chunk = recipients.slice(i, i + CHUNK);
-      const rows = chunk.map((r, j) => {
-        const globalIdx = i + j;
-        const v = pickVariant(globalIdx);
-        const slug = v?.template_slug_override || campaign.template_slug;
-        const fromName = v?.from_name_override ?? fromOverrideBase;
-        const fromDomainOverride = pickDomain(globalIdx);
-        return {
-          clinic_id: campaign.clinic_id,
-          template_slug: slug,
-          recipient_email: r.email,
-          recipient_name: r.name,
-          variables: { name: r.name ?? "", campaign_id, variant_id: v?.id ?? null, subject_override: v?.subject_override ?? null },
-          scheduled_at: scheduleFor(globalIdx),
-          related_lead_id: r.lead_id,
-          related_lead_table: relatedTable,
-          force_send: false,
-          from_name_override: fromName,
-          from_domain_override: fromDomainOverride,
-          variant_id: v?.id ?? null,
-          priority: 5,
-          status: "pending",
-        };
-      });
-      const { data: inserted, error: insErr } = await supabase
-        .from("email_queue")
-        .insert(rows)
-        .select("id");
-      if (insErr) {
-        console.warn("batch insert error, falling back:", insErr.message);
-        for (const row of rows) {
-          const { data } = await supabase.rpc("enqueue_email", {
-            _clinic_id: row.clinic_id,
-            _template_slug: row.template_slug,
-            _recipient_email: row.recipient_email,
-            _recipient_name: row.recipient_name,
-            _variables: row.variables,
-            _scheduled_at: row.scheduled_at,
-            _related_lead_id: row.related_lead_id,
-            _related_lead_table: row.related_lead_table,
-            _force_send: false,
-            _from_name_override: row.from_name_override,
-          });
-          if (data) enqueued++;
-        }
-      } else {
-        enqueued += inserted?.length ?? 0;
-      }
+    if (enqErr) {
+      await supabase.from("email_campaigns").update({
+        status: "failed",
+        error: enqErr.message,
+        updated_at: new Date().toISOString(),
+      }).eq("id", campaign_id);
+      console.error("enqueue_campaign_recipients error:", enqErr);
+      return jsonResponse({ error: enqErr.message }, { status: 500 });
     }
 
-
-
-    // Campanha vazia ainda é "sent" — só "failed" se houver destinatários e nenhum enfileirou
-    const finalStatus = recipients.length === 0
-      ? "sent"
-      : (enqueued > 0 ? "sent" : "failed");
+    const enqueued = Number((res as any)?.enqueued ?? 0) || 0;
 
     await supabase
       .from("email_campaigns")
       .update({
-        status: finalStatus,
-        total_recipients: recipients.length,
+        status: "sent",
+        total_recipients: enqueued,
         enqueued_count: enqueued,
         sent_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", campaign_id);
+
 
     // dispara processamento imediato (sem aguardar cron)
     fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/process-email-queue`, {
