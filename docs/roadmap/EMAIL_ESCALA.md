@@ -105,7 +105,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
 | **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
 | **G-28** ❌ | ~~`email_segment_contacts` sem unicidade dentro do segmento~~ | hipótese **descartada em 21/08**: o segmento "Desafio" tem 146.683 linhas e **146.683 e-mails distintos** | a lista não está duplicada. A falta de unicidade dentro do segmento continua existindo, mas não é o que aconteceu aqui |
-| **G-29** 🟠❓ | `dispatch-campaign/index.ts:126,145,157` | o padrão `if (error) { console.error(...); break; }` nas três paginações de destinatários é real: erro numa página é engolido, a função segue com público parcial e marca `sent`. **O risco é do código; falta um caso comprovado** | a leitura anterior ("campanhas foram para 12% da lista") **estava errada**: comparou o público de hoje (146.727) com campanhas enviadas antes da importação da lista grande. Os 17.020 e 4.504 eram, ao que tudo indica, o público da época. Verificar pela data de importação dos contatos vs. data de envio |
+| **G-29** 🟡 | `dispatch-campaign/index.ts:126,145,157` | o padrão `if (error) { console.error(...); break; }` nas três paginações engole erro de página: a função segue com público parcial e marca `sent`. **Risco do código, sem incidente** | **descartado como incidente em 21/08**: os 142.305 contatos grandes entraram em **21/08**, e as campanhas são de 28/07, 31/07 e 20/08 — todas anteriores. Os 17.020 e 4.504 eram o público da época. Corrigir o `break` continua certo (F2.1), mas não há envio truncado a remediar |
 
 ## 4b. Fora da fila: corrigir já
 
@@ -116,11 +116,6 @@ clínicas. O `delete` agora usa o `clinic_id` da própria linha. Fica registrado
 como lembrete: **todo `delete`/`update` por e-mail nesse módulo precisa do par
 `(clinic_id, email)`** — a PK é composta.
 
-**G-29 — risco não comprovado.** O `break` silencioso existe e pode marcar uma
-campanha como enviada tendo alcançado parte do público. Mas a suspeita de que
-isso já teria acontecido no MCD **não se sustentou**: as campanhas de 17.020 e
-4.504 são anteriores à importação dos 146k. Corrigir o `break` continua sendo
-certo (F2.1); tratar como incidente consumado, não.
 
 **G-21** (Pausar que não pausa) é um índice. Se uma campanha de 146k precisar
 ser interrompida hoje, o botão falha em silêncio — só o `UPDATE` direto no SQL
