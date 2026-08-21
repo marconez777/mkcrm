@@ -105,7 +105,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
 | **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
 | **G-28** ❌ | ~~`email_segment_contacts` sem unicidade dentro do segmento~~ | hipótese **descartada em 21/08**: o segmento "Desafio" tem 146.683 linhas e **146.683 e-mails distintos** | a lista não está duplicada. A falta de unicidade dentro do segmento continua existindo, mas não é o que aconteceu aqui |
-| **G-29** 🔴 | `dispatch-campaign/index.ts:122-131` + `resolve_email_segment` | **confirmado em 21/08.** A função **não tem `ORDER BY`**; o dispatch pagina com `.range()` e cada página é uma execução nova. Sem ordenação estável o Postgres pode devolver as linhas em ordem diferente a cada execução: as páginas **se sobrepõem e pulam linhas**. O dedup por e-mail colapsa a sobreposição e o laço encerra quando uma página volta com menos de 1.000 | **duas campanhas do MCD foram para 17.020 de 146.683 (11,6%)** e ficaram com status `sent`, sem erro em lugar nenhum. **129.663 pessoas nunca receberam** |
+| **G-29** 🔴 | `dispatch-campaign/index.ts:145,157` (e `:126`) | **confirmado em 21/08.** Em toda paginação de destinatários, erro numa página faz `console.error` + **`break`** — a função segue com o público parcial e marca a campanha `sent`. O usuário relatou ter visto erro no disparo; o log ficou só no console da edge | as campanhas do MCD usavam **"Todos"** (público = 162.874 contatos da clínica) e registram **17.020 / 17.020 / 4.504**. Pontos de corte diferentes confirmam erro transitório engolido, não teto fixo. **~145 mil pessoas nunca receberam** e nada indicou falha na tela |
 
 ## 4b. Fora da fila: corrigir já
 
@@ -118,10 +118,11 @@ como lembrete: **todo `delete`/`update` por e-mail nesse módulo precisa do par
 
 **G-29 — a campanha mente sobre ter sido enviada.** Medido em 21/08: segmento
 de 146.683 contatos, campanhas marcadas `sent` com 17.020 destinatários. A
-causa é `resolve_email_segment` sem `ORDER BY` sendo paginada por OFFSET. O
-conserto mínimo é SQL (ordenação determinística nas duas ramificações da
-função); o conserto certo é o F2.1 (enfileirar por `INSERT … SELECT`, sem
-paginar). **Enquanto não for corrigido, nenhuma campanha grande deve ser
+causa é o `break` silencioso em erro de página no `dispatch-campaign` — o
+conserto **não é SQL**, é o F2.1 (enfileirar por `INSERT … SELECT`, sem paginar,
+e falhar alto). O `ORDER BY` do F1.8 resolve um segundo problema, real e
+independente: disparo **por segmento** paginava um resultado sem ordenação
+estável. **Enquanto não for corrigido, nenhuma campanha grande deve ser
 disparada** — e as duas já enviadas precisam de reenvio só para quem ficou de
 fora, nunca para a lista toda.
 
@@ -164,7 +165,7 @@ SQL pronto no §7.
 | F1.5 | `check_email_operational_health`: filtrar por `sent_at` (indexado) em vez de `created_at`, e rodar 1× a cada N ciclos | G-11 | baixo |
 | F1.6 | `refresh_email_metrics_daily`: janela de 2d no cron de 15 min; 35d num cron diário | G-13 | baixo |
 | F1.7 | `autovacuum_vacuum_scale_factor = 0.01` nas tabelas de linha quente | G-06 | baixo |
-| F1.8 | **`ORDER BY` determinístico em `resolve_email_segment`** (as duas ramificações) — sem isso qualquer paginação por OFFSET sobre ela perde linhas | G-29 | baixo — só ordena, não muda o conjunto |
+| F1.8 ✅ | **`ORDER BY` determinístico em `resolve_email_segment`** (as duas ramificações) — sem isso a paginação por OFFSET **em disparo por segmento** perde linhas. Aplicado 21/08 | G-29 (parcial) | baixo — só ordena, não muda o conjunto |
 
 ### Fase 2 — edge functions (via agente Lovable)
 
