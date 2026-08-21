@@ -83,46 +83,60 @@ export default function EmailCampaigns() {
     if (!clinicId) return;
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const [{ data: cs, count }, ts, ss] = await Promise.all([
-      supabase
-        .from("email_campaigns")
-        .select("*", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .range(from, to),
-      fetchAllPaged<any>(() => supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name")),
-      fetchAllPaged<any>(() => supabase.from("email_segments").select("id,name").order("name")),
-    ]);
-    const campaigns = (cs ?? []) as Campaign[];
-    setTotal(count ?? 0);
-    // Conta sent/failed reais a partir de email_logs e email_queue por campanha (somente página atual)
-    const ids = campaigns.map((c) => `campaign_${c.id}`);
-    if (ids.length > 0) {
-      const [logs, queue] = await Promise.all([
-        fetchAllPaged<any>(() => supabase.from("email_logs").select("related_lead_table,status").in("related_lead_table", ids)),
-        fetchAllPaged<any>(() => supabase.from("email_queue").select("related_lead_table,status").in("related_lead_table", ids)),
+    try {
+      const [{ data: cs, count, error: csErr }, ts, ss] = await Promise.all([
+        supabase
+          .from("email_campaigns")
+          .select("*", { count: "exact" })
+          .order("created_at", { ascending: false })
+          .range(from, to),
+        fetchAllPaged<any>(() => supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name")),
+        fetchAllPaged<any>(() => supabase.from("email_segments").select("id,name").order("name")),
       ]);
-      const sentBy = new Map<string, number>();
-      const failedBy = new Map<string, number>();
-      for (const r of (logs ?? []) as any[]) {
-        sentBy.set(r.related_lead_table, (sentBy.get(r.related_lead_table) ?? 0) + 1);
-        if (["bounced", "complained", "failed"].includes(r.status)) {
-          failedBy.set(r.related_lead_table, (failedBy.get(r.related_lead_table) ?? 0) + 1);
-        }
+      if (csErr) throw csErr;
+      const campaigns = (cs ?? []) as Campaign[];
+      // Renderiza já com sent_count/failed_count da tabela (mantidos pelo
+      // trigger tg_email_queue_campaign_counters). O refinamento abaixo é
+      // opcional e não pode segurar nem derrubar a lista.
+      setTotal(count ?? 0);
+      setItems(campaigns);
+      setTemplates((ts ?? []) as any);
+      setSegments((ss ?? []) as any);
+
+      // Contadores reais (email_logs + email_queue) agregados no servidor para
+      // as campanhas da página. Antes a tela baixava TODAS as linhas dessas
+      // tabelas para contar no navegador — no MCD são centenas de milhares de
+      // linhas e a chamada estourava o statement_timeout, abortando o load()
+      // inteiro (ficava "1–6 de 6" com "Nenhuma campanha ainda").
+      if (campaigns.length === 0) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: counts, error: cErr } = await supabase.rpc("campaign_send_counts" as any, {
+        _clinic_id: clinicId,
+        _campaign_ids: campaigns.map((c) => c.id),
+      });
+      if (cErr) {
+        console.warn("[EmailCampaigns] campaign_send_counts indisponível; mantendo contadores da tabela", cErr);
+        return;
       }
-      for (const r of (queue ?? []) as any[]) {
-        if (r.status === "failed") {
-          failedBy.set(r.related_lead_table, (failedBy.get(r.related_lead_table) ?? 0) + 1);
-        }
+      type CountRow = { campaign_id: string; sent: number | string; failed: number | string };
+      const by = new Map<string, { sent: number; failed: number }>();
+      for (const r of (counts ?? []) as CountRow[]) {
+        by.set(r.campaign_id, { sent: Number(r.sent), failed: Number(r.failed) });
       }
-      for (const c of campaigns) {
-        const key = `campaign_${c.id}`;
-        c.sent_count = sentBy.get(key) ?? c.sent_count ?? 0;
-        c.failed_count = failedBy.get(key) ?? c.failed_count ?? 0;
-      }
+      setItems(campaigns.map((c) => {
+        const r = by.get(c.id);
+        if (!r) return c;
+        // Mesma regra de antes: só sobrescreve quando há registro real.
+        return {
+          ...c,
+          sent_count: r.sent > 0 ? r.sent : (c.sent_count ?? 0),
+          failed_count: r.failed > 0 ? r.failed : (c.failed_count ?? 0),
+        };
+      }));
+    } catch (e) {
+      console.error("[EmailCampaigns] load failed", e);
+      toast.error("Falha ao carregar campanhas. Recarregue a página.");
     }
-    setItems(campaigns);
-    setTemplates((ts ?? []) as any);
-    setSegments((ss ?? []) as any);
   }
 
 

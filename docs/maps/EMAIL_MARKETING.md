@@ -256,8 +256,16 @@ Cap `MAX_PER_COHORT=2000` por clínica.
   `has_clinic_access(clinic_id) AND clinic_has_feature(...)` direto na policy:
   são SECURITY DEFINER (não inlinam) e rodam por linha; com lista grande o
   `count=exact` do PostgREST estoura o `statement_timeout` (8s) → 500
-  (migration `20260821120000_esc_rls_initplan.sql`). As demais tabelas do
-  módulo ainda usam o padrão por linha.
+  (migration `20260821120000_esc_rls_initplan.sql`). `email_logs_read` e
+  `email_queue_select` seguem o mesmo formato desde
+  `20260821150000_email_logs_queue_rls_initplan.sql`; as outras ~20 tabelas
+  do módulo ainda usam o padrão por linha.
+- Email > Campanhas **não baixa linhas** de `email_logs`/`email_queue` para
+  contar enviados/falhas: usa a RPC `campaign_send_counts(clinic, ids[])`,
+  e renderiza a lista antes dela responder (fallback: `sent_count` /
+  `failed_count` da tabela, mantidos por `tg_email_queue_campaign_counters`).
+  Não volte a iterar `email_logs` no navegador — no MCD são centenas de
+  milhares de linhas por campanha.
 
 ## 6. Debug / operações
 
@@ -276,6 +284,10 @@ Cap `MAX_PER_COHORT=2000` por clínica.
   Contatos presa no spinner: é timeout da policy por linha (ver §5). Confirme
   com `select clinic_id, count(*) from email_segment_contacts group by 1` e
   `pg_get_expr(polqual, polrelid)` em `pg_policy` para a tabela.
+- **Campanhas mostra "1–6 de 6" e "Nenhuma campanha ainda"**: o `load()`
+  abortou depois do count. Até 21/08/2026 era o download de `email_logs`
+  estourando timeout; hoje o console mostra `[EmailCampaigns] load failed`
+  com a causa.
 
 ## 7. Diretório
 
