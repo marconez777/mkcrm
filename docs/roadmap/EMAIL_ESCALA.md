@@ -83,11 +83,11 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-04** ✅ | `CampaignRecipientsPreview.tsx:42` | mesma paginação da RPC, por segmento da campanha | card "Destinatários" girava para sempre no MCD — **corrigido 21/08** pela RPC `email_segment_preview` (F3.2, commit `c57740cd`) |
 | **G-05** 🟠 | `dispatch-campaign/index.ts:118-306` | resolve **todos** os destinatários na memória do edge e insere em 146 chunks | precisa caber no wall-clock de uma invocação; se morrer no meio, a campanha fica `sending` com fila parcial e sem retomada |
 | **G-06** 🔴 | gates do `send-email` | 4 linhas quentes por envio: `email_send_state` (1/clínica), `email_domain_warmup` (**`SELECT … FOR UPDATE`**, 1/domínio), `email_recipient_throttle` (1/clínica+domínio+hora), `email_campaigns` (trigger `tg_email_queue_campaign_counters`, 1/campanha) | CONCURRENCY=5 × BATCH_PARALLELISM=5 = 25 envios paralelos que **serializam nos locks**; ~8-9 round-trips por e-mail ≈ **1,2M queries** por campanha de 146k |
-| **G-07** 🟠 | `claim_recipient_throttle` | teto **fixo** de 1.000/hora por domínio de destino (hardcoded na chamada em `send-email`) | lista majoritariamente Gmail: 87k gmail ÷ 1.000/h ≈ **88 horas** de campanha. Existe escape (`clinics.settings.email.throttle_recipient_enabled=false`), mas desligar mexe com reputação |
-| **G-08** 🟠 | `claim_domain_warmup` | cap por idade do domínio: dia 0=50, 1=100, 2=500, 3=1.000, 4-6=5.000, 7-10=10.000, 11-13=25.000, 14+=livre | domínio novo **não envia 146k antes do 14º dia**; o do MCD está `partially_verified` |
-| **G-09** 🟠 | `clinic_email_quota` | default **1.000/dia** quando `clinics.settings.email.quota_daily` não está setado | com o default, uma campanha de 146k levaria 146 dias. Confirmar na Fase 0 |
+| **G-07** ⬇️ | `claim_recipient_throttle` | teto fixo de 1.000/hora por domínio de destino | **não bloqueia o MCD**: `throttle_recipient_enabled=false` nas settings da clínica (medido 21/08). Continua valendo para os outros tenants |
+| **G-08** ⬇️ | `claim_domain_warmup` | cap por idade do domínio (dia 0=50 … 14+=livre) | **inativo**: `email_domain_warmup` está **vazia**, então a função libera tudo. Vira risco só se alguém cadastrar warm-up |
+| **G-09** ⬇️ | `clinic_email_quota` | default 1.000/dia sem configuração | **não bloqueia o MCD**: `quota_daily = 50.000.000`. A ÓR tem 100.000. Os demais tenants estão no default |
 | **G-10** 🔴 | todas as tabelas do módulo | **nenhuma retenção** — não existe `cleanup_email_*` em migration alguma | ~440k linhas por campanha, para sempre; alimenta direto o problema de disco do [CLOUD_COST_REDUCTION](./CLOUD_COST_REDUCTION.md) |
-| **G-11** 🔴 | `check_email_operational_health()` | roda ao fim de **cada** ciclo de `process-email-queue`; faz `COUNT(*)` da fila e `GROUP BY` em `email_logs WHERE created_at >= now()-24h` — **não existe índice em `created_at`** → seq scan | com o self-trigger encadeado, é um seq scan da tabela de logs a cada poucos segundos durante a campanha |
+| **G-11** 🔴 | `check_email_operational_health()` | roda ao fim de **cada** ciclo de `process-email-queue`; faz `COUNT(*)` da fila e `GROUP BY` em `email_logs WHERE created_at >= now()-24h` — **não há índice em `created_at`** → seq scan | o cron está em **10 segundos** (medido 21/08), mais o self-trigger: é um seq scan de 57k linhas de log a cada poucos segundos |
 | **G-12** 🟠 | `email_operational_alerts` | `ON CONFLICT DO NOTHING` **sem índice único** → nunca suprime nada | `pending > 500` fica verdadeiro por horas: **uma linha de alerta por execução**, sem teto |
 | **G-13** 🟠 | `refresh_email_metrics_daily(35)` | cron de 15 min re-agrega **35 dias** de `email_logs` sem filtro de clínica; os índices são todos `(clinic_id, …)` e não servem | seq scan a cada 15 min, crescendo com o volume de logs |
 | **G-14** 🟡 | `process-email-queue/index.ts:36-52` | claim em dois passos (`select … limit 1000` → `update … in(ids)`) e o resultado do update **não é verificado** | duas execuções concorrentes processam os mesmos 1.000 jobs; a correção do envio é salva pelo `email_send_dedup`, mas o trabalho (e os gates) é feito em dobro |
@@ -143,6 +143,35 @@ banco** (achado de [MIGRACAO_SUPABASE](./MIGRACAO_SUPABASE.md)).
   (mede o G-12).
 
 SQL pronto no §7.
+
+#### Resultado da Fase 0 (21/08/2026)
+
+| Medida | Valor |
+|---|---|
+| `email_logs` | 57 MB / 57.193 linhas |
+| `email_segment_contacts` | 56 MB / 177.916 linhas |
+| `email_queue` | 35 MB / 61.321 linhas |
+| `email_send_dedup` | 30 MB / 60.706 linhas |
+| `resend_webhook_events` | 11 MB / 49.741 linhas |
+| `email_operational_alerts` | **307 linhas** — 273 `queue_backlog` + 34 `high_failure_rate` (confirma o G-12) |
+| MCD `settings.email` | `quota_daily 50.000.000`, `throttle_recipient_enabled false` |
+| `email_domain_warmup` | **vazia** — warm-up inativo |
+| Domínios | os três `partially_verified` |
+| Crons | `process-email-queue` **a cada 10s**, `email-automations-tick` 5min, `refresh-email-metrics-daily` 15min, `email-daily-summary` 11h |
+
+Índices sem uso relevante (candidatos a remoção depois de nova medição, os
+contadores são cumulativos desde o último reset): `email_queue_dedup_idx`
+(3,1 MB, 0), `email_logs_idempotency_idx` (9,7 MB, 1), `email_send_dedup_created_idx`
+(2,7 MB, 0), `email_queue_pending_idx` (320 kB, 0), `email_logs_variant_idx` (0).
+Cada índice a mais é escrita a mais nos 146k INSERTs de uma campanha.
+
+**Ainda no padrão por linha** (F1.1): `email_send_dedup`, `email_unsubscribes`,
+`email_metrics_daily`, `email_automation_enrollments`, `email_automations`,
+`email_campaigns`, `email_campaign_variants`, `email_segments`, `email_templates`,
+`email_template_folders`, `email_domains`, `email_domain_warmup`,
+`email_health_alerts` — e, crítico, as policies de **escrita** de `email_queue`
+(`admin_update`/`admin_delete`), que são o que o botão Pausar atravessa em 146k
+linhas.
 
 ### Fase 1 — SQL puro, sem deploy
 
