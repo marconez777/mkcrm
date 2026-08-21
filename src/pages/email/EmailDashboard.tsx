@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
@@ -64,7 +65,6 @@ type Log = {
   error: string | null;
 };
 
-type QueueRow = { status: string };
 
 const RANGES = [
   { id: "24h", label: "24h", hours: 24 },
@@ -100,6 +100,9 @@ function statusBadge(s: string) {
   return <Badge variant={map[s] ?? "secondary"}>{STATUS_LABEL[s] ?? s}</Badge>;
 }
 
+// Janela de coalescencia do realtime: no maximo uma atualizacao a cada 8s.
+const REALTIME_REFRESH_MS = 8000;
+
 const STATUS_COLORS: Record<string, string> = {
   sent: "hsl(var(--primary))",
   delivered: "hsl(var(--primary))",
@@ -114,7 +117,7 @@ export default function EmailDashboard() {
   const { membership } = useAuth();
   const clinicId = membership?.clinic_id;
   const [logs, setLogs] = useState<Log[]>([]);
-  const [queue, setQueue] = useState<QueueRow[]>([]);
+  const [queueCounts, setQueueCounts] = useState<{ pending: number; failed: number }>({ pending: 0, failed: 0 });
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [templateFilter, setTemplateFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -124,28 +127,41 @@ export default function EmailDashboard() {
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  async function load() {
+  // `silent` evita piscar o spinner nas atualizacoes vindas do realtime.
+  async function load(silent = false) {
     if (!clinicId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     const since = new Date(Date.now() - range.hours * 3600_000).toISOString();
-    const [ls, { data: q }, { data: state }, { data: c }] = await Promise.all([
-      fetchAllPaged<any>(() =>
-        supabase
-          .from("email_logs")
-          .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,delivered_at,error")
-          .gte("sent_at", since)
-          .order("sent_at", { ascending: false })
-      , 1000, 50_000),
-      supabase.from("email_queue").select("status").eq("clinic_id", clinicId),
-      supabase.from("email_send_state").select("sent_today").eq("clinic_id", clinicId).maybeSingle(),
-      supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle(),
-    ]);
-    setLogs((ls ?? []) as any);
-    setQueue((q ?? []) as any);
-    setSentToday((state as any)?.sent_today ?? 0);
-    setQuota(Number((c as any)?.settings?.email?.quota_daily ?? 1000));
-    setLastUpdate(new Date());
-    setLoading(false);
+    try {
+      const [ls, pendingCount, failedCount, { data: state }, { data: c }] = await Promise.all([
+        fetchAllPaged<any>(() =>
+          supabase
+            .from("email_logs")
+            .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,delivered_at,error")
+            .eq("clinic_id", clinicId)
+            .gte("sent_at", since)
+            .order("sent_at", { ascending: false })
+        , 1000, 50_000),
+        // Contagem no servidor: `select("status")` sem range parava em 1.000 e os
+        // cartoes mostravam "812 pendentes" com 146 mil na fila.
+        supabase.from("email_queue").select("id", { count: "exact", head: true })
+          .eq("clinic_id", clinicId).eq("status", "pending"),
+        supabase.from("email_queue").select("id", { count: "exact", head: true })
+          .eq("clinic_id", clinicId).eq("status", "failed"),
+        supabase.from("email_send_state").select("sent_today").eq("clinic_id", clinicId).maybeSingle(),
+        supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle(),
+      ]);
+      setLogs((ls ?? []) as any);
+      setQueueCounts({ pending: pendingCount.count ?? 0, failed: failedCount.count ?? 0 });
+      setSentToday((state as any)?.sent_today ?? 0);
+      setQuota(Number((c as any)?.settings?.email?.quota_daily ?? 1000));
+      setLastUpdate(new Date());
+    } catch (e) {
+      console.error("[EmailDashboard] load failed", e);
+      toast.error("Falha ao atualizar o painel. Os numeros podem estar desatualizados.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -156,24 +172,38 @@ export default function EmailDashboard() {
     document.title = "Email — Dashboard";
   }, []);
 
-  // Realtime subscriptions
+  // Realtime. Dois cuidados que nao existiam: filtro por clinica (o canal de
+  // email_logs recebia evento de TODA clinica) e coalescencia — durante um
+  // envio grande chegam centenas de eventos por minuto e cada um refazia o
+  // load() inteiro, que baixa ate 50 mil linhas de log.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
   useEffect(() => {
     if (!clinicId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const agendar = () => {
+      if (timer) return; // ja ha um refresh agendado nesta janela
+      timer = setTimeout(() => { timer = null; loadRef.current(true); }, REALTIME_REFRESH_MS);
+    };
     const ch = supabase
       .channel(`email-dash-${clinicId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "email_logs" },
-        () => load(),
+        { event: "*", schema: "public", table: "email_logs", filter: `clinic_id=eq.${clinicId}` },
+        agendar,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "email_queue", filter: `clinic_id=eq.${clinicId}` },
-        () => load(),
+        agendar,
       )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [clinicId, range.id]);
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(ch);
+    };
+  }, [clinicId]);
 
   // Métricas agregadas (precisas para janelas longas, sem teto de 1000 linhas)
   const metricsDays = Math.max(1, Math.ceil(range.hours / 24));
@@ -217,12 +247,6 @@ export default function EmailDashboard() {
       failedPct: total ? Math.round((failed / total) * 100) : 0,
     };
   }, [logs, useAggregated, metricRows]);
-
-  const queueStats = useMemo(() => {
-    const m: Record<string, number> = { pending: 0, processing: 0, failed: 0, sent: 0, cancelled: 0 };
-    for (const r of queue) m[r.status] = (m[r.status] ?? 0) + 1;
-    return m;
-  }, [queue]);
 
   const templates = useMemo(() => {
     const set = new Set(logs.map((l) => l.template_slug).filter(Boolean) as string[]);
@@ -343,7 +367,7 @@ export default function EmailDashboard() {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
             {loading ? "Atualizando..." : "Atualizar"}
           </Button>
         </div>
@@ -483,11 +507,11 @@ export default function EmailDashboard() {
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="rounded bg-muted/50 p-2">
                 <div className="text-muted-foreground">Pendentes</div>
-                <div className="text-lg font-semibold tabular-nums">{queueStats.pending ?? 0}</div>
+                <div className="text-lg font-semibold tabular-nums">{queueCounts.pending.toLocaleString("pt-BR")}</div>
               </div>
               <div className="rounded bg-muted/50 p-2">
                 <div className="text-muted-foreground">Falhas</div>
-                <div className="text-lg font-semibold tabular-nums text-destructive">{queueStats.failed ?? 0}</div>
+                <div className="text-lg font-semibold tabular-nums text-destructive">{queueCounts.failed.toLocaleString("pt-BR")}</div>
               </div>
             </div>
           </div>

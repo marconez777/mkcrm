@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
@@ -25,7 +26,14 @@ type QueueRow = {
 
 const FILTERS = ["all", "pending", "sending", "sent", "failed", "cancelled"];
 
+// Janela de coalescencia do realtime. Cada e-mail passa por pending -> sending
+// -> sent: uma campanha de 146k gera ~438 mil eventos. Sem isso, cada um
+// refazia o load() com count exact e a aba travava.
+const REALTIME_REFRESH_MS = 5000;
+
 export default function EmailQueue() {
+  const { membership } = useAuth();
+  const clinicId = membership?.clinic_id;
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -33,8 +41,9 @@ export default function EmailQueue() {
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
 
-  async function load() {
-    setLoading(true);
+  // `silent` evita piscar o spinner nas atualizacoes vindas do realtime.
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
     let q = supabase
@@ -52,15 +61,36 @@ export default function EmailQueue() {
     setLoading(false);
   }
 
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
   useEffect(() => {
     load();
-    const ch = supabase
-      .channel("email_queue_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "email_queue" }, () => load())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, page]);
+  }, [filter, page, clinicId]);
+
+  // Canal separado do load(): antes ele era recriado a cada clique de pagina ou
+  // filtro. E filtrado por clinica — sem o filtro, evento de qualquer tenant
+  // recarregava esta tela.
+  useEffect(() => {
+    if (!clinicId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const ch = supabase
+      .channel(`email_queue_changes_${clinicId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "email_queue", filter: `clinic_id=eq.${clinicId}` },
+        () => {
+          if (timer) return; // ja ha um refresh agendado nesta janela
+          timer = setTimeout(() => { timer = null; loadRef.current(true); }, REALTIME_REFRESH_MS);
+        },
+      )
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(ch);
+    };
+  }, [clinicId]);
 
   async function processNow() {
     setProcessing(true);
@@ -110,7 +140,7 @@ export default function EmailQueue() {
           ))}
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={load} disabled={loading} className="rounded-xl">
+          <Button size="sm" variant="outline" onClick={() => load()} disabled={loading} className="rounded-xl">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
           <Button size="sm" onClick={processNow} disabled={processing} className="rounded-xl shadow-[var(--shadow-soft)]">
