@@ -105,7 +105,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
 | **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
 | **G-28** ❌ | ~~`email_segment_contacts` sem unicidade dentro do segmento~~ | hipótese **descartada em 21/08**: o segmento "Desafio" tem 146.683 linhas e **146.683 e-mails distintos** | a lista não está duplicada. A falta de unicidade dentro do segmento continua existindo, mas não é o que aconteceu aqui |
-| **G-29** 🔴 | `dispatch-campaign/index.ts:126,145,157` | **confirmado e medido em 21/08.** Em toda paginação de destinatários, erro numa página faz `console.error` + **`break`**: a função segue com público parcial e marca a campanha `sent`. O erro fica só no console da edge | público real **146.727** endereços distintos. Alcançado: *Aula Editora Digital* **17.020**, *convite dia 20 - ZAP* **17.020**, *Cidô Amazon* **4.504**. **129.707 e 142.223 pessoas nunca receberam**, sem nenhum sinal na tela |
+| **G-29** 🟠❓ | `dispatch-campaign/index.ts:126,145,157` | o padrão `if (error) { console.error(...); break; }` nas três paginações de destinatários é real: erro numa página é engolido, a função segue com público parcial e marca `sent`. **O risco é do código; falta um caso comprovado** | a leitura anterior ("campanhas foram para 12% da lista") **estava errada**: comparou o público de hoje (146.727) com campanhas enviadas antes da importação da lista grande. Os 17.020 e 4.504 eram, ao que tudo indica, o público da época. Verificar pela data de importação dos contatos vs. data de envio |
 
 ## 4b. Fora da fila: corrigir já
 
@@ -116,15 +116,11 @@ clínicas. O `delete` agora usa o `clinic_id` da própria linha. Fica registrado
 como lembrete: **todo `delete`/`update` por e-mail nesse módulo precisa do par
 `(clinic_id, email)`** — a PK é composta.
 
-**G-29 — a campanha mente sobre ter sido enviada.** Medido em 21/08: público de
-146.727 endereços, campanhas marcadas `sent` alcançando 17.020, 17.020 e 4.504. A
-causa é o `break` silencioso em erro de página no `dispatch-campaign` — o
-conserto **não é SQL**, é o F2.1 (enfileirar por `INSERT … SELECT`, sem paginar,
-e falhar alto). O `ORDER BY` do F1.8 resolve um segundo problema, real e
-independente: disparo **por segmento** paginava um resultado sem ordenação
-estável. **Enquanto não for corrigido, nenhuma campanha grande deve ser
-disparada** — e as duas já enviadas precisam de reenvio só para quem ficou de
-fora, nunca para a lista toda.
+**G-29 — risco não comprovado.** O `break` silencioso existe e pode marcar uma
+campanha como enviada tendo alcançado parte do público. Mas a suspeita de que
+isso já teria acontecido no MCD **não se sustentou**: as campanhas de 17.020 e
+4.504 são anteriores à importação dos 146k. Corrigir o `break` continua sendo
+certo (F2.1); tratar como incidente consumado, não.
 
 **G-21** (Pausar que não pausa) é um índice. Se uma campanha de 146k precisar
 ser interrompida hoje, o botão falha em silêncio — só o `UPDATE` direto no SQL
