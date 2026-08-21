@@ -250,8 +250,9 @@ Cap `MAX_PER_COHORT=2000` por clínica.
 - `email-automations-tick` de automação nova arranca em `now()`; ligar
   uma automação NÃO deve enrolar leads históricos.
 - RLS de `email_segment_contacts` (`esc_clinic`) compara `clinic_id = ANY
-  ((SELECT accessible_clinic_ids('email_marketing')))` — o `(SELECT …)` vira
-  InitPlan e roda UMA vez por query. Não volte para
+  ((SELECT accessible_clinic_ids('email_marketing'))::uuid[])` — o `(SELECT …)`
+  vira InitPlan e roda UMA vez por query. O cast `::uuid[]` é obrigatório
+  (sem ele o Postgres lê `ANY(subquery)` → erro 42883). Não volte para
   `has_clinic_access(clinic_id) AND clinic_has_feature(...)` direto na policy:
   são SECURITY DEFINER (não inlinam) e rodam por linha; com lista grande o
   `count=exact` do PostgREST estoura o `statement_timeout` (8s) → 500

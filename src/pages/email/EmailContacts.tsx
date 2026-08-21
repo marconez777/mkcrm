@@ -55,6 +55,11 @@ type GroupedContact = {
   }>;
 };
 
+// Teto de linhas carregadas no navegador por consulta (leads e inscrições).
+// Era 100k e truncava em silêncio: a MCD tem ~163k inscrições (21/08/2026).
+// Acima disso a tela precisa virar paginação no servidor, não subir o teto.
+const CONTACTS_HARD_CAP = 300_000;
+
 export default function EmailContacts() {
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -126,7 +131,7 @@ export default function EmailContacts() {
             .not("email", "is", null)
             .neq("email", "")
             .order("created_at", { ascending: false }),
-          1000, 100_000,
+          1000, CONTACTS_HARD_CAP,
           (loaded) => { bump(loaded - prevLeads); prevLeads = loaded; },
         ),
         fetchAllPaged<SegContactRow>(
@@ -134,7 +139,7 @@ export default function EmailContacts() {
             .select("id, email, name, created_at, segment_id, lead_id")
             .eq("clinic_id", cid)
             .order("created_at", { ascending: false }),
-          1000, 100_000,
+          1000, CONTACTS_HARD_CAP,
           (loaded) => { bump(loaded - prevSeg); prevSeg = loaded; },
         ),
       ]);

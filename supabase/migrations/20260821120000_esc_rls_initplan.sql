@@ -18,6 +18,10 @@
 -- compara clinic_id = ANY(array). Mesma semântica da policy anterior:
 --   c.id ∈ array  ⇔  has_clinic_access(c.id) AND clinic_has_feature(c.id, 'email_marketing')
 --
+-- O cast `::uuid[]` é obrigatório: `ANY ((SELECT …))` mesmo com parênteses
+-- duplos é lido como ANY(subquery) e falha com 42883 (uuid = uuid[]).
+-- Com o cast vira ANY(array) e o SELECT continua sendo InitPlan.
+--
 -- `accessible_clinic_ids(_feature)` é genérica de propósito: as outras tabelas
 -- do módulo de e-mail (email_logs, email_queue, …) usam o mesmo padrão por
 -- linha e podem migrar para ela quando o volume justificar.
@@ -38,8 +42,9 @@ $$;
 COMMENT ON FUNCTION public.accessible_clinic_ids(text) IS
   'Clínicas que o usuário atual acessa (has_clinic_access) e, se informado, '
   'que têm a feature ligada (clinic_has_feature). Para usar em policies como '
-  'clinic_id = ANY ((SELECT public.accessible_clinic_ids(''feature''))) — '
-  'o SELECT vira InitPlan e roda uma vez por query, não por linha.';
+  'clinic_id = ANY ((SELECT public.accessible_clinic_ids(''feature''))::uuid[]) — '
+  'o SELECT vira InitPlan e roda uma vez por query, não por linha. O cast é '
+  'obrigatório, senão o Postgres lê como ANY(subquery) e falha.';
 
 REVOKE EXECUTE ON FUNCTION public.accessible_clinic_ids(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.accessible_clinic_ids(text) TO authenticated, service_role;
@@ -47,5 +52,5 @@ GRANT EXECUTE ON FUNCTION public.accessible_clinic_ids(text) TO authenticated, s
 DROP POLICY IF EXISTS esc_clinic ON public.email_segment_contacts;
 CREATE POLICY esc_clinic ON public.email_segment_contacts
   FOR ALL TO authenticated
-  USING (clinic_id = ANY ((SELECT public.accessible_clinic_ids('email_marketing'))))
-  WITH CHECK (clinic_id = ANY ((SELECT public.accessible_clinic_ids('email_marketing'))));
+  USING (clinic_id = ANY ((SELECT public.accessible_clinic_ids('email_marketing'))::uuid[]))
+  WITH CHECK (clinic_id = ANY ((SELECT public.accessible_clinic_ids('email_marketing'))::uuid[]));
