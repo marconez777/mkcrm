@@ -80,7 +80,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-01** ✅ | `email_segment_contacts` RLS | policy por linha | 500 na tela Contatos — **corrigido 21/08** |
 | **G-02** ✅ | `EmailCampaigns.load()` | baixava `email_logs` inteiro para contar | tela vazia — **corrigido 21/08** |
 | **G-03** 🔴 | `EmailSegments.tsx:154` | conta cada segmento paginando `resolve_email_segment` dentro de um `Promise.all` | segmento dinâmico de 146k = **146 execuções completas por segmento**, todas em paralelo → timeout garantido |
-| **G-04** 🟠 | `CampaignRecipientsPreview.tsx:42` | mesma paginação da RPC, por segmento da campanha | 146 execuções + dedup de 146k no navegador antes de liberar o disparo |
+| **G-04** ✅ | `CampaignRecipientsPreview.tsx:42` | mesma paginação da RPC, por segmento da campanha | card "Destinatários" girava para sempre no MCD — **corrigido 21/08** pela RPC `email_segment_preview` (F3.2, commit `c57740cd`) |
 | **G-05** 🟠 | `dispatch-campaign/index.ts:118-306` | resolve **todos** os destinatários na memória do edge e insere em 146 chunks | precisa caber no wall-clock de uma invocação; se morrer no meio, a campanha fica `sending` com fila parcial e sem retomada |
 | **G-06** 🔴 | gates do `send-email` | 4 linhas quentes por envio: `email_send_state` (1/clínica), `email_domain_warmup` (**`SELECT … FOR UPDATE`**, 1/domínio), `email_recipient_throttle` (1/clínica+domínio+hora), `email_campaigns` (trigger `tg_email_queue_campaign_counters`, 1/campanha) | CONCURRENCY=5 × BATCH_PARALLELISM=5 = 25 envios paralelos que **serializam nos locks**; ~8-9 round-trips por e-mail ≈ **1,2M queries** por campanha de 146k |
 | **G-07** 🟠 | `claim_recipient_throttle` | teto **fixo** de 1.000/hora por domínio de destino (hardcoded na chamada em `send-email`) | lista majoritariamente Gmail: 87k gmail ÷ 1.000/h ≈ **88 horas** de campanha. Existe escape (`clinics.settings.email.throttle_recipient_enabled=false`), mas desligar mexe com reputação |
@@ -98,12 +98,14 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-19** 🔴 | `EmailDashboard.tsx:160-176` | dois handlers realtime (`email_logs`, `email_queue`) sem filtro nem debounce, cada um refaz o `load()` que baixa até 50k linhas de log | durante o envio: ~100 recargas/min × 51 requisições ≈ **5.000 req/min** |
 | **G-20** 🔴 | `AutomationReportDialog.tsx:131-174` | quatro drenagens, duas por `.in()` sobre até 100k `lead_id` contra `email_logs.related_lead_id` e `email_queue.related_lead_id` — **sem índice** | um clique em "Relatório" ≈ **600 requisições** e centenas de milhões de linhas varridas; estoura e mostra tudo zero |
 | **G-21** 🔴 | `email_queue` sem índice em `related_lead_table` | Pausar/Retomar campanha faz `UPDATE … WHERE related_lead_table = 'campaign_x'` varrendo 146k linhas | **o botão Pausar estoura os 8s e não pausa** — a campanha continua enviando (`EmailCampaigns.tsx:259`, `CampaignLiveDialog.tsx:199`) |
-| **G-22** 🔴 | números silenciosamente errados | `EmailDashboard.tsx:139` (fila sem `.range()` → teto de 1.000), `useEmailMetrics.ts:33` (idem, corta os dias mais recentes), `CampaignRecipientsPreview` (teto de 100k), `resolve_email_segment_preview` (`LIMIT 5000` fixo), `EmailSegments.tsx:345` (supressões cortadas em 1.000) | a tela mostra "Pendentes: 812" com 146.000 travados; a prévia diz "5000 destinatários" para um público de 146k — **é esse número que decide o disparo** |
+| **G-22** 🔴 | números silenciosamente errados | `EmailDashboard.tsx:139` (fila sem `.range()` → teto de 1.000), `useEmailMetrics.ts:33` (idem, corta os dias mais recentes), ~~`CampaignRecipientsPreview` (teto de 100k)~~ — resolvido no G-04, `resolve_email_segment_preview` (`LIMIT 5000` fixo), `EmailSegments.tsx:345` (supressões cortadas em 1.000) | a tela mostra "Pendentes: 812" com 146.000 travados; a prévia diz "5000 destinatários" para um público de 146k — **é esse número que decide o disparo** |
 | **G-23** ✅ | `EmailUnsubscribes.tsx:54` | `delete().eq("email", …)` **sem `clinic_id`** | vazamento entre tenants: como super admin, remover um descadastro apagava a supressão daquele e-mail em todas as clínicas — **corrigido 21/08**, o delete agora filtra por `clinic_id` da linha |
 | **G-24** 🟠 | `EmailContacts.tsx:347-380` | importação faz 163 requisições de dedup e depois insere em chunks; **um duplicado derruba o chunk para inserção linha a linha** | melhor caso ~489 requisições; pior caso **163.000 requisições (~7h)**. `upsert … ignoreDuplicates` elimina os dois problemas |
 | **G-25** 🟠 | tratamento de erro do módulo | 8 arquivos fazem `{ data }` sem `error`; 5 chamam `fetchAllPaged` (que lança) sem `try/catch` | é a família do bug "1–6 de 6": a tela renderiza confiante cheia de zeros, ou o spinner nunca para. Corretos hoje: `EmailContacts`, `EmailCampaigns`, `CampaignRecipientsPreview`, `EmailLogs` |
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
 | **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
+| **G-28** 🔴❓ | `email_segment_contacts` sem unicidade dentro do segmento | o índice único é `(clinic_id, lower(email)) WHERE segment_id IS NULL` — contato **dentro** de segmento duplica à vontade; reimportar o mesmo CSV multiplica as linhas | o segmento "Desafio" tem **146.683 linhas** e as duas campanhas grandes registram **17.020 destinatários**. Ou a lista é ~8× duplicada, ou o G-29 truncou o público — **medir antes de agir** (F0.7) |
+| **G-29** 🔴❓ | `dispatch-campaign/index.ts:124-126` | ao paginar `resolve_email_segment`, erro numa página faz `break` e a função **segue com o que já coletou**: a campanha é marcada `sent` com público parcial e sem erro em lugar nenhum | um timeout no meio da paginação de 146k manda a campanha para uma fração da lista sem avisar. É a explicação alternativa do G-28 |
 
 ## 4b. Fora da fila: corrigir já
 
@@ -169,7 +171,7 @@ SQL pronto no §7.
 | # | Ação | Gargalo |
 |---|---|---|
 | F3.1 | `EmailSegments`: RPC `segment_counts(clinic)` devolvendo a contagem de todos os segmentos numa query — nunca paginar `resolve_email_segment` para contar | G-03 |
-| F3.2 | `CampaignRecipientsPreview`: RPC `segment_preview(ids[], limit)` devolvendo **contagem + amostra de 20** | G-04 |
+| F3.2 ✅ | `CampaignRecipientsPreview`: RPC `email_segment_preview(clinic, ids[], limit)` devolvendo **total + descadastrados + amostra** numa query (migration `20260821170000_email_segment_preview.sql`) | G-04 |
 | F3.3 | `EmailContacts`: paginação e busca **no servidor** | G-17 |
 | F3.4 | `CampaignReportDialog`: usar `report_campaign_stats` (já existe) em vez de baixar as linhas | — |
 | F3.6 | **Realtime com filtro de clínica + debounce de 5s** em `EmailQueue` e `EmailDashboard`; nunca refazer o `load()` inteiro no handler | G-18, G-19 |
@@ -239,6 +241,20 @@ order by 1, 2;
 ```
 
 ```sql
+-- F0.7 duplicidade da lista (decide entre G-28 e G-29)
+select coalesce(s.name, '(sem segmento)') as segmento,
+       count(*) as linhas,
+       count(distinct lower(c.email)) as emails_unicos,
+       count(*) - count(distinct lower(c.email)) as duplicadas,
+       count(*) filter (where c.email is null or c.email !~ '@') as invalidas
+from public.email_segment_contacts c
+left join public.email_segments s on s.id = c.segment_id
+where c.clinic_id = (select id from public.clinics where slug = 'mcd')
+group by 1
+order by 2 desc;
+```
+
+```sql
 -- F0.5 distribuicao de dominio de destino (define o custo do G-07)
 select lower(split_part(email, '@', 2)) as dominio,
        count(*) as contatos,
@@ -253,6 +269,11 @@ limit 20;
 
 ## 8. Histórico
 
+- **2026-08-21 (3)** — G-04 corrigido (RPC `email_segment_preview`, commit
+  `c57740cd`) a partir do relato "não carrega os contatos para enviar campanha".
+  A investigação levantou **G-28** e **G-29**: o segmento de 146.683 contatos
+  produziu campanhas de 17.020 destinatários, e ainda não se sabe se a lista é
+  duplicada ou se o disparo truncou em silêncio. F0.7 no §7 decide.
 - **2026-08-21 (2)** — varredura completa do frontend do módulo (24 arquivos):
   G-18 a G-27. Achados que mudam a leitura: as subscriptions realtime sem
   filtro são piores que qualquer drenagem de lista, vários números na tela
