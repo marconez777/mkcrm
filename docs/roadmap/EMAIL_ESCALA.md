@@ -99,7 +99,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-20** 🔴 | `AutomationReportDialog.tsx:131-174` | quatro drenagens, duas por `.in()` sobre até 100k `lead_id` contra `email_logs.related_lead_id` e `email_queue.related_lead_id` — **sem índice** | um clique em "Relatório" ≈ **600 requisições** e centenas de milhões de linhas varridas; estoura e mostra tudo zero |
 | **G-21** 🔴 | `email_queue` sem índice em `related_lead_table` | Pausar/Retomar campanha faz `UPDATE … WHERE related_lead_table = 'campaign_x'` varrendo 146k linhas | **o botão Pausar estoura os 8s e não pausa** — a campanha continua enviando (`EmailCampaigns.tsx:259`, `CampaignLiveDialog.tsx:199`) |
 | **G-22** 🔴 | números silenciosamente errados | `EmailDashboard.tsx:139` (fila sem `.range()` → teto de 1.000), `useEmailMetrics.ts:33` (idem, corta os dias mais recentes), `CampaignRecipientsPreview` (teto de 100k), `resolve_email_segment_preview` (`LIMIT 5000` fixo), `EmailSegments.tsx:345` (supressões cortadas em 1.000) | a tela mostra "Pendentes: 812" com 146.000 travados; a prévia diz "5000 destinatários" para um público de 146k — **é esse número que decide o disparo** |
-| **G-23** 🔴 | `EmailUnsubscribes.tsx:54` | `delete().eq("email", …)` **sem `clinic_id`** | não é escala, é vazamento entre tenants: como super admin, remover um descadastro **apaga a supressão daquele e-mail em todas as clínicas** — o contato volta a receber onde pediu para sair |
+| **G-23** ✅ | `EmailUnsubscribes.tsx:54` | `delete().eq("email", …)` **sem `clinic_id`** | vazamento entre tenants: como super admin, remover um descadastro apagava a supressão daquele e-mail em todas as clínicas — **corrigido 21/08**, o delete agora filtra por `clinic_id` da linha |
 | **G-24** 🟠 | `EmailContacts.tsx:347-380` | importação faz 163 requisições de dedup e depois insere em chunks; **um duplicado derruba o chunk para inserção linha a linha** | melhor caso ~489 requisições; pior caso **163.000 requisições (~7h)**. `upsert … ignoreDuplicates` elimina os dois problemas |
 | **G-25** 🟠 | tratamento de erro do módulo | 8 arquivos fazem `{ data }` sem `error`; 5 chamam `fetchAllPaged` (que lança) sem `try/catch` | é a família do bug "1–6 de 6": a tela renderiza confiante cheia de zeros, ou o spinner nunca para. Corretos hoje: `EmailContacts`, `EmailCampaigns`, `CampaignRecipientsPreview`, `EmailLogs` |
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
@@ -107,10 +107,12 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 
 ## 4b. Fora da fila: corrigir já
 
-**G-23** não é escala — é um vazamento entre tenants de uma linha de código
-(`EmailUnsubscribes.tsx:54`, falta `.eq("clinic_id", …)`). Enquanto existir,
-qualquer remoção de descadastro feita por um super admin reabre aquele e-mail
-em **todas** as clínicas. Não deve esperar fase nenhuma.
+**G-23 — corrigido em 21/08.** Era um vazamento entre tenants de uma linha de
+código (`EmailUnsubscribes.tsx:54`, faltava `.eq("clinic_id", …)`): uma remoção
+de descadastro feita por super admin reabria aquele e-mail em **todas** as
+clínicas. O `delete` agora usa o `clinic_id` da própria linha. Fica registrado
+como lembrete: **todo `delete`/`update` por e-mail nesse módulo precisa do par
+`(clinic_id, email)`** — a PK é composta.
 
 **G-21** (Pausar que não pausa) é um índice. Se uma campanha de 146k precisar
 ser interrompida hoje, o botão falha em silêncio — só o `UPDATE` direto no SQL

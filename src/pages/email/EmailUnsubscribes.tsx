@@ -49,9 +49,16 @@ export default function EmailUnsubscribes() {
 
   function applySearch() { setPage(0); load(); }
 
-  async function remove(email: string) {
-    if (!(await confirm({ title: "Remover descadastro?", description: `${email} voltará a poder receber e-mails.`, confirmLabel: "Remover", destructive: true }))) return;
-    const { error } = await supabase.from("email_unsubscribes").delete().eq("email", email);
+  // A PK é (clinic_id, email): sem o clinic_id o delete apaga a supressão do
+  // mesmo e-mail em TODA clínica que o usuário enxerga — para um super admin,
+  // todas. O contato voltaria a receber onde pediu para sair.
+  async function remove(row: Row) {
+    if (!(await confirm({ title: "Remover descadastro?", description: `${row.email} voltará a poder receber e-mails.`, confirmLabel: "Remover", destructive: true }))) return;
+    const { error } = await supabase
+      .from("email_unsubscribes")
+      .delete()
+      .eq("email", row.email)
+      .eq("clinic_id", row.clinic_id);
     if (error) toast.error(error.message);
     else { toast.success("Removido"); load(); }
   }
@@ -114,7 +121,7 @@ export default function EmailUnsubscribes() {
                   {format(new Date(r.unsubscribed_at), "dd/MM/yyyy HH:mm")}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button size="icon" variant="ghost" onClick={() => remove(r.email)} className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                  <Button size="icon" variant="ghost" onClick={() => remove(r)} className="h-8 w-8 text-muted-foreground hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
