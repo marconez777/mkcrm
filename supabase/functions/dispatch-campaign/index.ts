@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
       body: "{}",
     }).catch(() => {});
 
-    return jsonResponse({ ok: true, total: recipients.length, enqueued, status: finalStatus });
+    return jsonResponse({ ok: true, total: enqueued, enqueued, status: "sent" });
   } catch (e) {
     console.error("dispatch-campaign error:", e);
     return jsonResponse({ error: String(e) }, { status: 500 });
