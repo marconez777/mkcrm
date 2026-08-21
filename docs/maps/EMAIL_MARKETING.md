@@ -3,7 +3,7 @@ title: "Email Marketing"
 topic: email
 kind: map
 audience: agent
-updated: 2026-07-01
+updated: 2026-08-21
 summary: "Runtime completo de email marketing: templates, campanhas A/B, automações, fila, throttling multi-camada, webhooks Resend, dashboard e unsubscribe."
 code_refs:
   - src/pages/email/
@@ -249,6 +249,14 @@ Cap `MAX_PER_COHORT=2000` por clínica.
   tags. Renomear tag quebra a remoção quando lead sai do cohort.
 - `email-automations-tick` de automação nova arranca em `now()`; ligar
   uma automação NÃO deve enrolar leads históricos.
+- RLS de `email_segment_contacts` (`esc_clinic`) compara `clinic_id = ANY
+  ((SELECT accessible_clinic_ids('email_marketing')))` — o `(SELECT …)` vira
+  InitPlan e roda UMA vez por query. Não volte para
+  `has_clinic_access(clinic_id) AND clinic_has_feature(...)` direto na policy:
+  são SECURITY DEFINER (não inlinam) e rodam por linha; com lista grande o
+  `count=exact` do PostgREST estoura o `statement_timeout` (8s) → 500
+  (migration `20260821120000_esc_rls_initplan.sql`). As demais tabelas do
+  módulo ainda usam o padrão por linha.
 
 ## 6. Debug / operações
 
@@ -263,6 +271,10 @@ Cap `MAX_PER_COHORT=2000` por clínica.
   loga em `email_logs.variant_id`.
 - **Backfill de webhook**: se `resend_id` chegou tarde, rode
   `backfill-resend-events` para re-vincular eventos órfãos.
+- **`HEAD …/email_segment_contacts?select=id&clinic_id=eq.X` → 500** e a tela
+  Contatos presa no spinner: é timeout da policy por linha (ver §5). Confirme
+  com `select clinic_id, count(*) from email_segment_contacts group by 1` e
+  `pg_get_expr(polqual, polrelid)` em `pg_policy` para a tabela.
 
 ## 7. Diretório
 
