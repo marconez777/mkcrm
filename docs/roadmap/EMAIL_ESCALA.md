@@ -107,8 +107,9 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-28** ❌ | ~~`email_segment_contacts` sem unicidade dentro do segmento~~ | hipótese **descartada em 21/08**: o segmento "Desafio" tem 146.683 linhas e **146.683 e-mails distintos** | a lista não está duplicada. A falta de unicidade dentro do segmento continua existindo, mas não é o que aconteceu aqui |
 | **G-29** 🟡 | `dispatch-campaign/index.ts:126,145,157` | o padrão `if (error) { console.error(...); break; }` nas três paginações engole erro de página: a função segue com público parcial e marca `sent`. **Risco do código, sem incidente** | **descartado como incidente em 21/08**: os 142.305 contatos grandes entraram em **21/08**, e as campanhas são de 28/07, 31/07 e 20/08 — todas anteriores. Os 17.020 e 4.504 eram o público da época. Corrigir o `break` continua certo (F2.1), mas não há envio truncado a remediar |
 
-| **G-30** 🔴 | entregabilidade — não é código | `email.delivery_delayed`: **7.576 eventos** no total, **4.282 só nos últimos 7 dias**. Os três domínios estão `partially_verified`. Entrega adiada é o provedor de destino segurando o remetente | disparar 146k de uma lista fria por um domínio parcialmente verificado, com esse volume de adiamento já hoje, tende a virar bloqueio e queima de reputação. **Verificar o domínio por completo e aquecer antes do disparo grande** — nenhum item de performance deste roadmap compensa reputação queimada |
-| **G-31** 🟡 | `resend-webhook` | eventos com assinatura inválida devolvem 401 e **não são registrados em lugar nenhum** — não há como saber depois que chegaram e foram recusados | os eventos da campanha de 20/08 (16.778 e-mails) quase não aparecem: 1.238 no período, contra 16.605 de julho. Compatível com o secret do MCD ter sido cadastrado depois. Sem registro de rejeição, isso só se descobre por dedução |
+| **G-30** 🟠 | entregabilidade — não é código | `email.delivery_delayed`: **7.576 eventos**, **4.282 nos últimos 7 dias**. O domínio **está verificado no Resend** (DKIM, SPF e tracking todos Verified — o `partially_verified` do banco era dado velho, ver G-32) | não é problema de DNS: é lista fria + volume. Antes de 146k, subir o envio em degraus e acompanhar adiamento/bounce. Reputação queimada não se conserta com otimização |
+| **G-31** 🟡 | `resend-webhook` | eventos com assinatura inválida devolvem 401 e **não ficam registrados** — não há como saber depois que chegaram e foram recusados | confirmado pelo usuário: o secret do MCD foi cadastrado depois das primeiras campanhas, então elas realmente não puxaram evento. O webhook está correto hoje. Fica o buraco de observabilidade: uma rejeição futura seria igualmente invisível |
+| **G-32** 🔴 | `email-domain-manage` | `email_domains.status` **só é atualizado quando alguém clica** (ações `import`, `create`, `verify`). Não existe sincronização periódica com o Resend | os três domínios estão gravados como `partially_verified` enquanto o Resend reporta **Verified**. O status guardado é o retrato do momento em que o DNS ainda propagava. Consequência: leitura falsa de entregabilidade, `DnsWizard` seguindo em modo de espera, e — pior — um domínio que passe a falhar de verdade continuaria marcado como bom |
 
 ## 4b. Fora da fila: corrigir já
 
@@ -210,6 +211,7 @@ removidas.
 | F2.3 | Gates em lote: RPC `claim_send_slots(clinic, domain, dest_domains[], n)` resolvendo cota + warm-up + throttle por lote em vez de por e-mail | G-06 |
 | F2.4 | Contadores de campanha por agregação periódica, ou trigger `FOR EACH STATEMENT` | G-06 |
 | F2.5 | `send-email`: token de unsubscribe e lookup de suppression por lote | G-06 |
+| F2.6 | Sincronização periódica de `email_domains.status` com o Resend (ação nova em `email-domain-manage` + cron diário), em vez de depender de clique | G-32 |
 
 ### Fase 3 — telas
 
