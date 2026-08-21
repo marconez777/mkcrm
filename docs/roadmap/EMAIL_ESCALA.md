@@ -104,8 +104,8 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-25** 🟠 | tratamento de erro do módulo | 8 arquivos fazem `{ data }` sem `error`; 5 chamam `fetchAllPaged` (que lança) sem `try/catch` | é a família do bug "1–6 de 6": a tela renderiza confiante cheia de zeros, ou o spinner nunca para. Corretos hoje: `EmailContacts`, `EmailCampaigns`, `CampaignRecipientsPreview`, `EmailLogs` |
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
 | **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
-| **G-28** 🔴❓ | `email_segment_contacts` sem unicidade dentro do segmento | o índice único é `(clinic_id, lower(email)) WHERE segment_id IS NULL` — contato **dentro** de segmento duplica à vontade; reimportar o mesmo CSV multiplica as linhas | o segmento "Desafio" tem **146.683 linhas** e as duas campanhas grandes registram **17.020 destinatários**. Ou a lista é ~8× duplicada, ou o G-29 truncou o público — **medir antes de agir** (F0.7) |
-| **G-29** 🔴❓ | `dispatch-campaign/index.ts:124-126` | ao paginar `resolve_email_segment`, erro numa página faz `break` e a função **segue com o que já coletou**: a campanha é marcada `sent` com público parcial e sem erro em lugar nenhum | um timeout no meio da paginação de 146k manda a campanha para uma fração da lista sem avisar. É a explicação alternativa do G-28 |
+| **G-28** ❌ | ~~`email_segment_contacts` sem unicidade dentro do segmento~~ | hipótese **descartada em 21/08**: o segmento "Desafio" tem 146.683 linhas e **146.683 e-mails distintos** | a lista não está duplicada. A falta de unicidade dentro do segmento continua existindo, mas não é o que aconteceu aqui |
+| **G-29** 🔴 | `dispatch-campaign/index.ts:122-131` + `resolve_email_segment` | **confirmado em 21/08.** A função **não tem `ORDER BY`**; o dispatch pagina com `.range()` e cada página é uma execução nova. Sem ordenação estável o Postgres pode devolver as linhas em ordem diferente a cada execução: as páginas **se sobrepõem e pulam linhas**. O dedup por e-mail colapsa a sobreposição e o laço encerra quando uma página volta com menos de 1.000 | **duas campanhas do MCD foram para 17.020 de 146.683 (11,6%)** e ficaram com status `sent`, sem erro em lugar nenhum. **129.663 pessoas nunca receberam** |
 
 ## 4b. Fora da fila: corrigir já
 
@@ -115,6 +115,15 @@ de descadastro feita por super admin reabria aquele e-mail em **todas** as
 clínicas. O `delete` agora usa o `clinic_id` da própria linha. Fica registrado
 como lembrete: **todo `delete`/`update` por e-mail nesse módulo precisa do par
 `(clinic_id, email)`** — a PK é composta.
+
+**G-29 — a campanha mente sobre ter sido enviada.** Medido em 21/08: segmento
+de 146.683 contatos, campanhas marcadas `sent` com 17.020 destinatários. A
+causa é `resolve_email_segment` sem `ORDER BY` sendo paginada por OFFSET. O
+conserto mínimo é SQL (ordenação determinística nas duas ramificações da
+função); o conserto certo é o F2.1 (enfileirar por `INSERT … SELECT`, sem
+paginar). **Enquanto não for corrigido, nenhuma campanha grande deve ser
+disparada** — e as duas já enviadas precisam de reenvio só para quem ficou de
+fora, nunca para a lista toda.
 
 **G-21** (Pausar que não pausa) é um índice. Se uma campanha de 146k precisar
 ser interrompida hoje, o botão falha em silêncio — só o `UPDATE` direto no SQL
@@ -155,6 +164,7 @@ SQL pronto no §7.
 | F1.5 | `check_email_operational_health`: filtrar por `sent_at` (indexado) em vez de `created_at`, e rodar 1× a cada N ciclos | G-11 | baixo |
 | F1.6 | `refresh_email_metrics_daily`: janela de 2d no cron de 15 min; 35d num cron diário | G-13 | baixo |
 | F1.7 | `autovacuum_vacuum_scale_factor = 0.01` nas tabelas de linha quente | G-06 | baixo |
+| F1.8 | **`ORDER BY` determinístico em `resolve_email_segment`** (as duas ramificações) — sem isso qualquer paginação por OFFSET sobre ela perde linhas | G-29 | baixo — só ordena, não muda o conjunto |
 
 ### Fase 2 — edge functions (via agente Lovable)
 
