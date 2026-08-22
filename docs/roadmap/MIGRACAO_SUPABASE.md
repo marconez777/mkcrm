@@ -13,7 +13,14 @@ related_docs:
 
 # RASCUNHO — Migração para Supabase próprio
 
-> ## ⛔ DESCARTADO em 13/08/2026 — custo alto demais
+> ## ↩ RETOMADO em 22/08/2026 — ver [MIGRACAO_SUPABASE_PLANO.md](./MIGRACAO_SUPABASE_PLANO.md)
+>
+> O Lovable passou a oferecer **export oficial de banco** (pg_dump, teto de 5 GB),
+> o que responde a pergunta da §4.1 e derruba o motivo do descarte. O plano
+> executável vive agora em `MIGRACAO_SUPABASE_PLANO.md`. **Este documento fica
+> como o inventário de 13/08** (§3) e o achado de método (§2), ambos ainda válidos.
+>
+> ## ⛔ Descartado em 13/08/2026 — custo alto demais (contexto histórico)
 >
 > Decisão tomada depois do dimensionamento abaixo: 141 tabelas, 280 funções,
 > 118 triggers, 204 políticas RLS, 38 crons e ~2,1 GB de dados, **sem acesso a
