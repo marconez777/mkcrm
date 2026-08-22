@@ -131,14 +131,13 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "template_inactive" }, { status: 412 });
     }
 
-    // G-36/F2.1: o enfileiramento real é executado de forma assíncrona pelo
-    // pg_cron (função enqueue_pending_campaigns), que roda como postgres e não
-    // sofre o statement_timeout de 8s do PostgREST. Aqui apenas marcamos a
-    // campanha como 'sending' e devolvemos 202 imediatamente.
-    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/process-email-queue`, {
+    // O enfileiramento real roda de forma assincrona na edge function
+    // `enqueue-campaign`, que fatia o publico em chunks (cada chamada cabe no
+    // statement timeout). Aqui apenas marcamos 'sending' e devolvemos 202.
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/enqueue-campaign`, {
       method: "POST",
       headers: { Authorization: `Bearer ${SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify({ campaign_id }),
     }).catch(() => {});
 
     return jsonResponse({ ok: true, status: "queueing" }, { status: 202 });
