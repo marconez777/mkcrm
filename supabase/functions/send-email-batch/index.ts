@@ -316,31 +316,26 @@ Deno.serve(async (req) => {
     // ---- match resultado ao job (por posição) ----
     const results: any[] = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
 
-    const logsToInsert: any[] = [];
-    const sentIds: string[] = [];
+    const finalizeRows: any[] = [];
+    let sentCount = 0;
     for (let i = 0; i < prepared.length; i++) {
       const p = prepared[i];
       const r = results[i];
       const resendId = r?.id;
       if (resendId) {
-        sentIds.push(p.job.queue_id);
-        logsToInsert.push({
-          clinic_id, resend_id: resendId, template_slug,
-          recipient_email: p.email, subject: p.payload.subject,
-          status: "sent",
+        sentCount++;
+        finalizeRows.push({
+          queue_id: p.job.queue_id,
+          email: p.email,
+          resend_id: resendId,
+          subject: p.payload.subject,
           related_lead_id: p.job.related_lead_id ?? null,
           related_lead_table: p.job.related_lead_table ?? null,
           variant_id: p.job.variant_id ?? null,
           from_domain_override: overrideDomain || null,
-          events: [{ type: "sent", at: new Date().toISOString(), batch: true }],
+          use_dedup: p.useDedup,
+          context: p.dedupContext,
         });
-
-        if (p.useDedup) {
-          await supabase.from("email_send_dedup")
-            .update({ resend_id: resendId })
-            .eq("clinic_id", clinic_id).eq("template_slug", template_slug)
-            .eq("email", p.email).eq("context", p.dedupContext);
-        }
       } else {
         // este job específico não retornou id
         if (p.useDedup) {
@@ -359,14 +354,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (logsToInsert.length) {
-      await supabase.from("email_logs").insert(logsToInsert);
+    if (finalizeRows.length) {
+      const { error: finErr } = await supabase.rpc("finalize_send_batch", {
+        _clinic_id: clinic_id,
+        _template_slug: template_slug,
+        _rows: finalizeRows,
+      });
+      if (finErr) console.error("finalize_send_batch failed:", finErr.message);
     }
-    if (sentIds.length) {
-      await supabase.from("email_queue").update({
-        status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).in("id", sentIds);
-    }
+
 
     return jsonResponse({ ok: true, sent: sentIds.length, skipped: skipped.length, total: jobs.length });
   } catch (e) {
