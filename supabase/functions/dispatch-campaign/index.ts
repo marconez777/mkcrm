@@ -131,43 +131,17 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "template_inactive" }, { status: 412 });
     }
 
-    // G-05/G-29/F2.1: toda a resolução de público, dedup, variantes A/B,
-    // rotação de domínio e throttling acontecem no banco, em uma transação.
-    const { data: res, error: enqErr } = await supabase
-      .rpc("enqueue_campaign_recipients", { _campaign_id: campaign_id });
-
-    if (enqErr) {
-      await supabase.from("email_campaigns").update({
-        status: "failed",
-        error: enqErr.message,
-        updated_at: new Date().toISOString(),
-      }).eq("id", campaign_id);
-      console.error("enqueue_campaign_recipients error:", enqErr);
-      return jsonResponse({ error: enqErr.message }, { status: 500 });
-    }
-
-    const enqueued = Number((res as any)?.enqueued ?? 0) || 0;
-
-    await supabase
-      .from("email_campaigns")
-      .update({
-        status: "sent",
-        total_recipients: enqueued,
-        enqueued_count: enqueued,
-        sent_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", campaign_id);
-
-
-    // dispara processamento imediato (sem aguardar cron)
+    // G-36/F2.1: o enfileiramento real é executado de forma assíncrona pelo
+    // pg_cron (função enqueue_pending_campaigns), que roda como postgres e não
+    // sofre o statement_timeout de 8s do PostgREST. Aqui apenas marcamos a
+    // campanha como 'sending' e devolvemos 202 imediatamente.
     fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/process-email-queue`, {
       method: "POST",
       headers: { Authorization: `Bearer ${SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
       body: "{}",
     }).catch(() => {});
 
-    return jsonResponse({ ok: true, total: enqueued, enqueued, status: "sent" });
+    return jsonResponse({ ok: true, status: "queueing" }, { status: 202 });
   } catch (e) {
     console.error("dispatch-campaign error:", e);
     return jsonResponse({ error: String(e) }, { status: 500 });
