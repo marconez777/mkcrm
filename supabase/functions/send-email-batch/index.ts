@@ -81,14 +81,7 @@ Deno.serve(async (req) => {
     const { data: clinicRow } = await supabase.from("clinics").select("slug, settings").eq("id", clinic_id).maybeSingle();
     const throttleEnabled = (clinicRow as any)?.settings?.email?.throttle_recipient_enabled !== false;
 
-    // unsubscribes (1 query — todas as suppressed deste lote)
-    const emailsLower = jobs.map((j: any) => String(j.recipient_email).toLowerCase());
-    const { data: unsubs } = await supabase
-      .from("email_unsubscribes").select("email")
-      .eq("clinic_id", clinic_id).in("email", emailsLower);
-    const unsubSet = new Set((unsubs ?? []).map((u: any) => u.email));
-
-    // ---- pré-processamento em FASES sobre o lote (G-06 / F2.3) ----
+    // ---- B2: preparo do lote inteiro numa única RPC (dedup + cota + warmup + tokens) ----
     type Prepared = {
       job: any;
       email: string;
@@ -102,21 +95,73 @@ Deno.serve(async (req) => {
 
     type Cand = { job: any; email: string; destDomain: string; dedupContext: string; useDedup: boolean };
 
-    // Fase 1 — descadastro (1 query, já feita acima)
-    let survivors: Cand[] = [];
-    for (const job of jobs) {
+    const candByQueueId = new Map<string, Cand>();
+    const rpcJobs = jobs.map((job: any) => {
       const email = String(job.recipient_email).toLowerCase().trim();
       const destDomain = email.split("@")[1] ?? "unknown";
-      if (!job.force && unsubSet.has(email)) {
-        skipped.push({ queue_id: job.queue_id, reason: "unsubscribed" });
-        continue;
-      }
       const dedupContext = job.related_lead_table ?? "";
       const useDedup = !isInternalContext(job.related_lead_table) && !!job.related_lead_table;
-      survivors.push({ job, email, destDomain, dedupContext, useDedup });
+      candByQueueId.set(String(job.queue_id), { job, email, destDomain, dedupContext, useDedup });
+      return {
+        queue_id: job.queue_id,
+        email,
+        force: !!job.force,
+        use_dedup: useDedup,
+        context: dedupContext,
+      };
+    });
+
+    const { data: prepRows, error: prepErr } = await supabase.rpc("prepare_send_batch", {
+      _clinic_id: clinic_id,
+      _template_slug: template_slug,
+      _from_domain: fromDomain,
+      _jobs: rpcJobs,
+    });
+    if (prepErr) {
+      console.error("prepare_send_batch failed:", prepErr.message);
+      return jsonResponse({ error: `prepare_send_batch failed: ${prepErr.message}` }, { status: 500 });
     }
 
-    // helpers de release em lote
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    tomorrow.setUTCHours(12, 0, 0, 0);
+    const warmupRetryAt = new Date(Date.now() + 30 * 60_000).toISOString();
+
+    let survivors: Cand[] = [];
+    const tokenMap = new Map<string, string>();
+    for (const row of (prepRows ?? []) as any[]) {
+      const qid = String(row.queue_id);
+      const c = candByQueueId.get(qid);
+      if (!c) continue;
+      switch (row.outcome) {
+        case "send":
+          tokenMap.set(c.email, String(row.token ?? ""));
+          survivors.push(c);
+          break;
+        case "unsubscribed":
+          skipped.push({ queue_id: qid, reason: "unsubscribed" });
+          break;
+        case "already_sent":
+          skipped.push({ queue_id: qid, reason: "already_sent" });
+          break;
+        case "quota_reached":
+          skipped.push({
+            queue_id: qid, reason: "quota_reached",
+            reschedule_at: tomorrow.toISOString(), error: "daily quota reached",
+          });
+          break;
+        case "warmup_cap_reached":
+          skipped.push({
+            queue_id: qid, reason: "warmup_cap_reached",
+            reschedule_at: warmupRetryAt, error: "warmup cap reached",
+          });
+          break;
+        default:
+          skipped.push({ queue_id: qid, reason: String(row.outcome ?? "unknown") });
+      }
+    }
+
+    // helpers de release (usados apenas no throttle e no erro do Resend)
     const releaseDedup = async (list: Cand[]) => {
       const byCtx = new Map<string, string[]>();
       for (const c of list) {
@@ -138,110 +183,6 @@ Deno.serve(async (req) => {
       if (n > 0) await supabase.rpc("release_domain_warmup_bulk", { _clinic_id: clinic_id, _domain: fromDomain, _n: n });
     };
 
-    // G-33/G-34: rastreio do que já foi reservado, para devolver ao abortar
-    const reservedDedup: Cand[] = [];
-    let reservedQuota = 0;
-    let reservedWarmup = 0;
-    const abortBatch = async (msg: string) => {
-      await releaseDedup(reservedDedup);
-      await releaseQuota(reservedQuota);
-      await releaseWarmup(reservedWarmup);
-      return jsonResponse({ error: msg }, { status: 500 });
-    };
-
-    // Fase 2 — dedup em lote por contexto
-    {
-      const byCtx = new Map<string, Cand[]>();
-      for (const c of survivors) {
-        if (!c.useDedup) continue;
-        const arr = byCtx.get(c.dedupContext) ?? [];
-        arr.push(c);
-        byCtx.set(c.dedupContext, arr);
-      }
-      const rejected = new Set<string>(); // queue_id
-      for (const [ctx, list] of byCtx) {
-        const { data: claims, error: claimErr } = await supabase.rpc("claim_send_dedup_batch", {
-          _clinic_id: clinic_id,
-          _template_slug: template_slug,
-          _context: ctx,
-          _emails: list.map((c) => c.email),
-        });
-        if (claimErr) {
-          return await abortBatch(`claim_send_dedup_batch failed: ${claimErr.message}`);
-        }
-        const claimedMap = new Map<string, boolean>((claims ?? []).map((r: any) => [String(r.email), !!r.claimed]));
-        for (const c of list) {
-          if (claimedMap.get(c.email) === false) {
-            rejected.add(c.job.queue_id);
-            skipped.push({ queue_id: c.job.queue_id, reason: "already_sent" });
-          } else {
-            reservedDedup.push(c);
-          }
-        }
-      }
-      survivors = survivors.filter((c) => !rejected.has(c.job.queue_id));
-    }
-
-    // Fase 3 — cota em lote
-    if (survivors.length > 0) {
-      const n = survivors.length;
-      const { data: claimRow, error: quotaErr } = await supabase
-        .rpc("claim_email_quota_bulk", { _clinic_id: clinic_id, _n: n }).single();
-      if (quotaErr) {
-        return await abortBatch(`claim_email_quota_bulk failed: ${quotaErr.message}`);
-      }
-      const granted = Number((claimRow as any)?.granted ?? 0);
-      reservedQuota += granted;
-      if (granted < n) {
-        const denied = survivors.slice(granted);
-        survivors = survivors.slice(0, granted);
-        await releaseDedup(denied);
-        for (const d of denied) {
-          const i = reservedDedup.indexOf(d);
-          if (i >= 0) reservedDedup.splice(i, 1);
-        }
-        const tomorrow = new Date();
-        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-        tomorrow.setUTCHours(12, 0, 0, 0);
-        for (const c of denied) {
-          skipped.push({
-            queue_id: c.job.queue_id, reason: "quota_reached",
-            reschedule_at: tomorrow.toISOString(), error: "daily quota reached",
-          });
-        }
-      }
-    }
-
-    // Fase 4 — warmup em lote
-    if (survivors.length > 0) {
-      const n = survivors.length;
-      const { data: warmRow, error: warmErr } = await supabase
-        .rpc("claim_domain_warmup_bulk", { _clinic_id: clinic_id, _domain: fromDomain, _n: n }).single();
-      if (warmErr) {
-        return await abortBatch(`claim_domain_warmup_bulk failed: ${warmErr.message}`);
-      }
-      const granted = Number((warmRow as any)?.granted ?? 0);
-      reservedWarmup += granted;
-      if (granted < n) {
-        const denied = survivors.slice(granted);
-        survivors = survivors.slice(0, granted);
-        await releaseDedup(denied);
-        for (const d of denied) {
-          const i = reservedDedup.indexOf(d);
-          if (i >= 0) reservedDedup.splice(i, 1);
-        }
-        await releaseQuota(denied.length);
-        reservedQuota -= denied.length;
-        const at = new Date(Date.now() + 30 * 60_000).toISOString();
-        for (const c of denied) {
-          skipped.push({
-            queue_id: c.job.queue_id, reason: "warmup_cap_reached",
-            reschedule_at: at, error: `warmup cap (${(warmRow as any)?.daily_cap})`,
-          });
-        }
-      }
-    }
-
     // Fase 5 — throttle por destino (por job; sem versão em lote)
     if (throttleEnabled && survivors.length > 0) {
       const kept: Cand[] = [];
@@ -251,12 +192,8 @@ Deno.serve(async (req) => {
           .single();
         if ((throttleClaim as any)?.allowed === false) {
           await releaseDedup([c]);
-          const i = reservedDedup.indexOf(c);
-          if (i >= 0) reservedDedup.splice(i, 1);
           await releaseQuota(1);
-          reservedQuota -= 1;
           await releaseWarmup(1);
-          reservedWarmup -= 1;
           const win = new Date((throttleClaim as any).window_start ?? Date.now());
           skipped.push({
             queue_id: c.job.queue_id, reason: "recipient_throttle",
@@ -270,17 +207,6 @@ Deno.serve(async (req) => {
       survivors = kept;
     }
 
-    // Fase 6 — tokens de descadastro em lote
-    const tokenMap = new Map<string, string>();
-    if (survivors.length > 0) {
-      const { data: tokens, error: tokenErr } = await supabase.rpc("generate_unsubscribe_tokens", {
-        _clinic_id: clinic_id, _emails: survivors.map((c) => c.email),
-      });
-      if (tokenErr) {
-        return await abortBatch(`generate_unsubscribe_tokens failed: ${tokenErr.message}`);
-      }
-      for (const t of (tokens ?? []) as any[]) tokenMap.set(String(t.email), String(t.token ?? ""));
-    }
 
 
     // ---- render ----
