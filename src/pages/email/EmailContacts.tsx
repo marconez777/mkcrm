@@ -86,6 +86,7 @@ export default function EmailContacts() {
   const [mapName, setMapName] = useState<string>("");
   const [importSegment, setImportSegment] = useState<string>("");
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ loaded: number; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // delete confirm
@@ -341,43 +342,33 @@ export default function EmailContacts() {
 
       const segId = importSegment && importSegment !== "__none" ? importSegment : null;
 
-      // Diff contra o que já existe no destino: um único duplicado num INSERT
-      // em lote derruba o lote inteiro (UNIQUE segment_id+email / clinic+email
-      // sem segmento) e descartava os contatos novos daquele lote.
-      const existing = await fetchAllPaged<{ email: string }>(() => {
-        const q = supabase
-          .from("email_segment_contacts")
-          .select("email")
-          .eq("clinic_id", clinicId)
-          .order("id", { ascending: true });
-        return segId ? q.eq("segment_id", segId) : q.is("segment_id", null);
-      }, 1000, 200_000);
-      const existingSet = new Set(existing.map((r) => String(r.email).toLowerCase()));
-
-      const fresh = rows.filter((r) => !existingSet.has(r.email));
-      let dup = rows.length - fresh.length;
-      let ok = 0, fail = 0;
-
-      const chunkSize = 500;
-      for (let i = 0; i < fresh.length; i += chunkSize) {
-        const chunk = fresh.slice(i, i + chunkSize).map((r) => ({
-          clinic_id: clinicId,
-          segment_id: segId,
-          email: r.email,
-          name: r.name,
-          added_by: user?.id,
-        }));
-        const { error } = await supabase.from("email_segment_contacts").insert(chunk);
-        if (!error) { ok += chunk.length; continue; }
-        // Lote recusado (ex.: duplicado legado com caixa alta) — insere um a um
-        // pra não descartar o resto do lote.
-        for (const row of chunk) {
-          const { error: e1 } = await supabase.from("email_segment_contacts").insert(row);
-          if (!e1) ok++;
-          else if ((e1 as any).code === "23505") dup++;
-          else fail++;
+      // O duplicado é resolvido no banco (ON CONFLICT DO NOTHING). Antes a tela
+      // baixava TODOS os contatos do destino para comparar — 163 requisições
+      // com a lista do MCD, antes de inserir a primeira linha — e, quando um
+      // lote era recusado por um único duplicado, reinseria linha a linha:
+      // até 163 mil requisições no pior caso (G-24 do EMAIL_ESCALA).
+      let ok = 0, dup = 0, fail = 0;
+      const chunkSize = 1000;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: res, error } = await supabase.rpc("import_email_contacts" as any, {
+          _clinic_id: clinicId,
+          _segment_id: segId,
+          _rows: chunk,
+          _added_by: user?.id ?? null,
+        });
+        if (error) {
+          console.error("[EmailContacts] import chunk failed", error);
+          fail += chunk.length;
+          continue;
         }
+        const r = (res ?? {}) as { inseridos?: number; duplicados?: number };
+        ok += Number(r.inseridos ?? 0);
+        dup += Number(r.duplicados ?? 0);
+        setImportProgress({ loaded: Math.min(i + chunk.length, rows.length), total: rows.length });
       }
+      setImportProgress(null);
 
       const parts = [`${ok} importado(s)`];
       if (dup) parts.push(`${dup} já existiam`);
@@ -489,7 +480,9 @@ export default function EmailContacts() {
                 <Button variant="outline" onClick={() => setOpenImport(false)}>Cancelar</Button>
                 <Button onClick={doImport} disabled={importing || !importRows.length}>
                   {importing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Importar
+                  {importing && importProgress
+                    ? `Importando ${importProgress.loaded.toLocaleString("pt-BR")} de ${importProgress.total.toLocaleString("pt-BR")}`
+                    : "Importar"}
                 </Button>
               </DialogFooter>
             </DialogContent>

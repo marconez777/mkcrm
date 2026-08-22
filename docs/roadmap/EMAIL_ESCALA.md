@@ -47,6 +47,7 @@ Números medidos no SQL Editor em 21/08/2026:
 | `email_logs` por clínica | MCD 39.489 · FXN 14.857 · ÓR 2.845 |
 | `email_queue` por clínica | MCD 43.052 · FXN 15.345 · ÓR 2.924 |
 | `statement_timeout` (`authenticated`) | **8s** |
+| `statement_timeout` (`service_role`) | **sem limite próprio** — o enfileiramento de 146k num `INSERT` não esbarra em teto |
 | Teto de linhas por resposta PostgREST | **1.000** |
 
 Regra de bolso derivada: **uma campanha de 146k destinatários escreve ~440 mil
@@ -83,7 +84,7 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-02** ✅ | `EmailCampaigns.load()` | baixava `email_logs` inteiro para contar | tela vazia — **corrigido 21/08** |
 | **G-03** ✅ | `EmailSegments.tsx:148-172` | contava cada segmento paginando `resolve_email_segment` dentro de um `Promise.all` — 147 execuções completas por segmento de 146k | **corrigido 21/08** pela RPC `email_segment_counts(clinic)`: uma chamada para todos os segmentos. Em falha mostra "contagem indisponível" em vez de **0** — um segmento de 146 mil aparecendo vazio fazia parecer quebrado |
 | **G-04** ✅ | `CampaignRecipientsPreview.tsx:42` | mesma paginação da RPC, por segmento da campanha | card "Destinatários" girava para sempre no MCD — **corrigido 21/08** pela RPC `email_segment_preview` (F3.2, commit `c57740cd`) |
-| **G-05** 🟠 | `dispatch-campaign/index.ts:118-306` | resolve **todos** os destinatários na memória do edge e insere em 146 chunks | precisa caber no wall-clock de uma invocação; se morrer no meio, a campanha fica `sending` com fila parcial e sem retomada |
+| **G-05** ✅ | `dispatch-campaign` | resolvia todos os destinatários na memória do edge e inseria em chunks | **corrigido 21/08** (Lovable, commit `422b5fd0`): delega tudo a `enqueue_campaign_recipients` — uma transação, sem paginação. Erro marca a campanha como `failed` com a mensagem, nunca `sent` |
 | **G-06** 🔴 | gates do `send-email` | 4 linhas quentes por envio: `email_send_state` (1/clínica), `email_domain_warmup` (**`SELECT … FOR UPDATE`**, 1/domínio), `email_recipient_throttle` (1/clínica+domínio+hora), `email_campaigns` (trigger `tg_email_queue_campaign_counters`, 1/campanha) | CONCURRENCY=5 × BATCH_PARALLELISM=5 = 25 envios paralelos que **serializam nos locks**; ~8-9 round-trips por e-mail ≈ **1,2M queries** por campanha de 146k |
 | **G-07** ⬇️ | `claim_recipient_throttle` | teto fixo de 1.000/hora por domínio de destino | **não bloqueia o MCD**: `throttle_recipient_enabled=false` nas settings da clínica (medido 21/08). Continua valendo para os outros tenants |
 | **G-08** ⬇️ | `claim_domain_warmup` | cap por idade do domínio (dia 0=50 … 14+=livre) | **inativo**: `email_domain_warmup` está **vazia**, então a função libera tudo. Vira risco só se alguém cadastrar warm-up |
@@ -102,12 +103,12 @@ Severidade: 🔴 quebra hoje · 🟠 quebra na próxima campanha grande · 🟡 
 | **G-21** 🔴 | `email_queue` sem índice em `related_lead_table` | Pausar/Retomar campanha faz `UPDATE … WHERE related_lead_table = 'campaign_x'` varrendo 146k linhas | **o botão Pausar estoura os 8s e não pausa** — a campanha continua enviando (`EmailCampaigns.tsx:259`, `CampaignLiveDialog.tsx:199`) |
 | **G-22** 🟠 | números silenciosamente errados | `useEmailMetrics.ts:33` (sem `.range()` → corta os dias mais recentes), `resolve_email_segment_preview` (`LIMIT 5000` fixo), `EmailSegments.tsx:345` (supressões cortadas em 1.000). ~~`EmailDashboard.tsx:139`~~ **corrigido 21/08**: os cartões de fila passaram a contar no servidor — mostravam no máximo 1.000 com 146 mil enfileirados | a prévia ainda diz "5000 destinatários" para um público de 146k — **é esse número que decide o disparo** |
 | **G-23** ✅ | `EmailUnsubscribes.tsx:54` | `delete().eq("email", …)` **sem `clinic_id`** | vazamento entre tenants: como super admin, remover um descadastro apagava a supressão daquele e-mail em todas as clínicas — **corrigido 21/08**, o delete agora filtra por `clinic_id` da linha |
-| **G-24** 🟠 | `EmailContacts.tsx:347-380` | importação faz 163 requisições de dedup e depois insere em chunks; **um duplicado derruba o chunk para inserção linha a linha** | melhor caso ~489 requisições; pior caso **163.000 requisições (~7h)**. `upsert … ignoreDuplicates` elimina os dois problemas |
+| **G-24** ✅ | `EmailContacts.tsx:347-380` | conferência prévia baixando a base inteira (163 requisições) e, se um lote fosse recusado por um duplicado, reinserção linha a linha — até 163 mil requisições | **corrigido 21/08** pela RPC `import_email_contacts` com `ON CONFLICT DO NOTHING`: 143 chamadas para 142k, duplicado deixa de ser exceção e vira contagem, com progresso no botão |
 | **G-25** 🟠 | tratamento de erro do módulo | 8 arquivos fazem `{ data }` sem `error`; 5 chamam `fetchAllPaged` (que lança) sem `try/catch` | é a família do bug "1–6 de 6": a tela renderiza confiante cheia de zeros, ou o spinner nunca para. Corretos hoje: `EmailContacts`, `EmailCampaigns`, `CampaignRecipientsPreview`, `EmailLogs` |
 | **G-26** 🟠 | `fetch-all.ts:22` | `hardCap` default de **100.000** sem sinalizar truncamento | contra 162.874 linhas, **62.874 somem sem erro nem aviso**; o array volta como se estivesse completo |
 | **G-27** 🟡 | `SettingsEmailDomain.tsx:105` | um `DnsWizard` por domínio, cada um com poller de 20s | 4 domínios = **720 invocações de edge/hora**, cada uma batendo na API do Resend |
 | **G-28** ❌ | ~~`email_segment_contacts` sem unicidade dentro do segmento~~ | hipótese **descartada em 21/08**: o segmento "Desafio" tem 146.683 linhas e **146.683 e-mails distintos** | a lista não está duplicada. A falta de unicidade dentro do segmento continua existindo, mas não é o que aconteceu aqui |
-| **G-29** 🟡 | `dispatch-campaign/index.ts:126,145,157` | o padrão `if (error) { console.error(...); break; }` nas três paginações engole erro de página: a função segue com público parcial e marca `sent`. **Risco do código, sem incidente** | **descartado como incidente em 21/08**: os 142.305 contatos grandes entraram em **21/08**, e as campanhas são de 28/07, 31/07 e 20/08 — todas anteriores. Os 17.020 e 4.504 eram o público da época. Corrigir o `break` continua certo (F2.1), mas não há envio truncado a remediar |
+| **G-29** ✅ | `dispatch-campaign` | `if (error) { console.error(...); break; }` em toda paginação: seguia com público parcial e gravava `sent` | **corrigido 21/08**: não há mais paginação nem `break`. Ou enfileira tudo, ou a campanha vai para `failed` |
 
 | **G-30** 🟠 | entregabilidade — não é código | `email.delivery_delayed`: **7.576 eventos**, **4.282 nos últimos 7 dias**. O domínio **está verificado no Resend** (DKIM, SPF e tracking todos Verified — o `partially_verified` do banco era dado velho, ver G-32) | não é problema de DNS: é lista fria + volume. Antes de 146k, subir o envio em degraus e acompanhar adiamento/bounce. Reputação queimada não se conserta com otimização |
 | **G-31** 🟡 | `resend-webhook` | eventos com assinatura inválida devolvem 401 e **não ficam registrados** — não há como saber depois que chegaram e foram recusados | confirmado pelo usuário: o secret do MCD foi cadastrado depois das primeiras campanhas, então elas realmente não puxaram evento. O webhook está correto hoje. Fica o buraco de observabilidade: uma rejeição futura seria igualmente invisível |
@@ -208,7 +209,7 @@ removidas.
 
 | # | Ação | Gargalo |
 |---|---|---|
-| F2.1 | `dispatch-campaign`: enfileirar **no banco** (`INSERT … SELECT` a partir de `resolve_email_segment`) em vez de trazer 146k para a memória do edge; ou fatiar em invocações retomáveis com cursor na campanha | G-05 |
+| F2.1 ✅ | `dispatch-campaign`: enfileirar **no banco** (`INSERT … SELECT` a partir de `resolve_email_segment`) em vez de trazer 146k para a memória do edge; ou fatiar em invocações retomáveis com cursor na campanha | G-05 |
 | F2.2 | `process-email-queue`: claim atômico via RPC com `FOR UPDATE SKIP LOCKED` devolvendo os jobs já marcados | G-14 |
 | F2.3 | Gates em lote: RPC `claim_send_slots(clinic, domain, dest_domains[], n)` resolvendo cota + warm-up + throttle por lote em vez de por e-mail | G-06 |
 | F2.4 | Contadores de campanha por agregação periódica, ou trigger `FOR EACH STATEMENT` | G-06 |
@@ -226,7 +227,7 @@ removidas.
 | F3.6 ✅ | **Realtime com filtro de clínica + coalescência** em `EmailQueue` (5s) e `EmailDashboard` (8s). Aplicado 21/08 | G-18, G-19 |
 | F3.7 | RPC `automation_step_stats(automation_id)` no lugar das quatro drenagens do relatório de automação | G-20 |
 | F3.8 | Fim das truncagens silenciosas: contagem de fila por RPC `group by status`; `fetchAllPaged` devolvendo `{ rows, truncated }`; prévia devolvendo total real, não o `LIMIT 5000` | G-22, G-26 |
-| F3.9 | Importação por `upsert(onConflict: "segment_id,email", ignoreDuplicates)` — remove o dedup e o fallback linha a linha | G-24 |
+| F3.9 ✅ | Importação pela RPC `import_email_contacts` com `ON CONFLICT DO NOTHING` (o `upsert` do PostgREST não alcança o índice parcial de contato sem segmento). Aplicado 21/08 | G-24 |
 | F3.5 | Padrão para o módulo: `try/catch` que renderiza o que já tem e avisa, em vez de abortar (o bug do "1–6 de 6") | G-02 |
 
 ### Fase 4 — estrutural (decidir, não executar ainda)
