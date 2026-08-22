@@ -3,7 +3,7 @@ title: "Roadmap: documentação do e-mail do MCD"
 topic: email
 kind: roadmap
 audience: both
-status: proposto
+status: concluido
 updated: 2026-08-21
 summary: "Plano detalhado para documentar o módulo de e-mail do tenant MCD: sete documentos, em ordem de urgência, cada um com o que precisa conter, de onde tirar a evidência (arquivo ou query) e quem responde o que o código não responde. Começa pelo que pode causar incidente amanhã."
 tenant: mcd
@@ -36,9 +36,9 @@ related_docs:
 | D1 ✅ | [`OPERACAO.md`](./OPERACAO.md) | Como disparar, pausar, retomar e saber se deu certo — hoje, com o que existe | 🔴 antes do próximo disparo |
 | D2 ✅ | [`INTEGRACAO_RESEND.md`](./INTEGRACAO_RESEND.md) | Conta, chave, webhook e domínio próprios: o que é, onde está, como se perde | 🔴 |
 | D3 ✅ | [`FLUXO_DE_ENVIO.md`](./FLUXO_DE_ENVIO.md) | O caminho de um e-mail do clique até o evento de entrega, com os limites em cada etapa | 🟠 |
-| D4 | `LISTA_E_SEGMENTOS.md` | De onde vem a lista, como entra, como é contada, o que a deduplica | 🟠 |
-| D5 | `ENTREGABILIDADE.md` | Reputação, ritmo, adiamentos, bounces — e a regra de aquecimento que o sistema ainda não tem | 🟠 |
-| D6 | `METRICAS_E_RELATORIOS.md` | O que cada número da tela significa, de onde vem, e onde ele mente | 🟡 |
+| D4 ✅ | [`LISTA_E_SEGMENTOS.md`](./LISTA_E_SEGMENTOS.md) | De onde vem a lista, como entra, como é contada, o que a deduplica | 🟠 |
+| D5 ✅ | [`ENTREGABILIDADE.md`](./ENTREGABILIDADE.md) | Reputação, ritmo, adiamentos, bounces — e a regra de aquecimento que o sistema ainda não tem | 🟠 |
+| D6 ✅ | [`METRICAS_E_RELATORIOS.md`](./METRICAS_E_RELATORIOS.md) | O que cada número da tela significa, de onde vem, e onde ele mente | 🟡 |
 | D7 ✅ | [`INCIDENTES.md`](./INCIDENTES.md) | Linha do tempo do que já quebrou, causa, correção, e o que ficou | 🟡 vivo |
 
 ## 2. D1 — `OPERACAO.md`
@@ -232,13 +232,20 @@ executa); diagnóstico errado de truncagem (17.020 de 146k) e sua retratação.
 | 2 ✅ | D2 Integração Resend (21/08; tier da conta marcado ❓) | — | — |
 | 3 ✅ | D7 Incidentes — semeado com 21/08 | — | — |
 | 4 ✅ | D3 Fluxo de envio (21/08) | — | — |
-| 5 | D4 Lista e segmentos | resposta sobre origem da lista + query de domínios | 2h |
-| 6 | D5 Entregabilidade | query de adiamento por dia + primeira campanha grande medida | 2h + espera |
-| 7 | D6 Métricas | nada | 1h |
+| 5 ✅ | D4 Lista e segmentos (21/08; origem da lista ❓) | — | — |
+| 6 ✅ | D5 Entregabilidade (21/08; números por dia ainda não rodados — §7.1) | — | — |
+| 7 ✅ | D6 Métricas (21/08) | — | — |
 
 Depois do e-mail, a mesma pasta recebe: `sdr-ia/` (agente "LOL", incidente do
 loop, ausência de teto de respostas), `acessos.md` (contas duplicadas, papéis)
 e `cobranca.md` (plano manual). Fora de escopo deste roadmap.
+
+## 9b. Estado em 21/08/2026
+
+Os sete documentos existem. O que ficou marcado `❓` dentro deles depende das
+respostas da §10 e das queries de medição (D5 §7.1, D4 §7) — ninguém rodou
+ainda. O incidente aberto (cron de enfileiramento) está em `OPERACAO.md` §8 e
+`INCIDENTES.md`.
 
 ## 10. Perguntas que o código não responde
 

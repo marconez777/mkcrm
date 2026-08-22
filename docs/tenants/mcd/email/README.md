@@ -27,10 +27,12 @@ related_docs:
 > - [`INCIDENTES.md`](./INCIDENTES.md) — o que já quebrou, causa, correção, o que ficou.
 > - [`INTEGRACAO_RESEND.md`](./INTEGRACAO_RESEND.md) — conta, chave, webhook e domínio próprios; o que some e como aparece.
 > - [`FLUXO_DE_ENVIO.md`](./FLUXO_DE_ENVIO.md) — as oito etapas de um e-mail, com o limite e o sintoma de cada uma.
+> - [`LISTA_E_SEGMENTOS.md`](./LISTA_E_SEGMENTOS.md) — como a lista entra, o que é duplicado, como é contada, e as três formas de alguém sair.
+> - [`ENTREGABILIDADE.md`](./ENTREGABILIDADE.md) — **o risco que código não cobre**: 16% de bounce, freios inativos, regra manual e proposta de ritmo automático.
+> - [`METRICAS_E_RELATORIOS.md`](./METRICAS_E_RELATORIOS.md) — de onde vem cada número e onde ele ainda mente.
 >
-> Os demais (lista, entregabilidade, métricas) estão
-> planejados em [`ROADMAP_DOCUMENTACAO.md`](./ROADMAP_DOCUMENTACAO.md). Enquanto não existem,
-> o que se sabe está resumido abaixo.
+> O plano que gerou estes documentos está em [`ROADMAP_DOCUMENTACAO.md`](./ROADMAP_DOCUMENTACAO.md).
+> Abaixo, o resumo do que é diferente no MCD e o estado em 21/08.
 
 ## 1. O que é diferente no MCD
 
