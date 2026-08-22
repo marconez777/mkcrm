@@ -33,13 +33,13 @@ related_docs:
 
 | # | Arquivo | Pergunta que responde | Urgência |
 |---|---|---|---|
-| D1 | `OPERACAO.md` | Como disparar, pausar, retomar e saber se deu certo — hoje, com o que existe | 🔴 antes do próximo disparo |
+| D1 ✅ | [`OPERACAO.md`](./OPERACAO.md) | Como disparar, pausar, retomar e saber se deu certo — hoje, com o que existe | 🔴 antes do próximo disparo |
 | D2 | `INTEGRACAO_RESEND.md` | Conta, chave, webhook e domínio próprios: o que é, onde está, como se perde | 🔴 |
 | D3 | `FLUXO_DE_ENVIO.md` | O caminho de um e-mail do clique até o evento de entrega, com os limites em cada etapa | 🟠 |
 | D4 | `LISTA_E_SEGMENTOS.md` | De onde vem a lista, como entra, como é contada, o que a deduplica | 🟠 |
 | D5 | `ENTREGABILIDADE.md` | Reputação, ritmo, adiamentos, bounces — e a regra de aquecimento que o sistema ainda não tem | 🟠 |
 | D6 | `METRICAS_E_RELATORIOS.md` | O que cada número da tela significa, de onde vem, e onde ele mente | 🟡 |
-| D7 | `INCIDENTES.md` | Linha do tempo do que já quebrou, causa, correção, e o que ficou | 🟡 vivo |
+| D7 ✅ | [`INCIDENTES.md`](./INCIDENTES.md) | Linha do tempo do que já quebrou, causa, correção, e o que ficou | 🟡 vivo |
 
 ## 2. D1 — `OPERACAO.md`
 
@@ -228,9 +228,9 @@ executa); diagnóstico errado de truncagem (17.020 de 146k) e sua retratação.
 
 | Passo | O quê | Depende de | Esforço |
 |---|---|---|---|
-| 1 | D1 Operação — versão "estado de hoje" | resolver ou documentar o cron 58 | 1-2h |
+| 1 ✅ | D1 Operação — versão "estado de hoje" (21/08) | cron 58 documentado como pendência | — |
 | 2 | D2 Integração Resend | resposta do Natanael sobre tier | 1-2h |
-| 3 | D7 Incidentes — semear com 21/08 | nada | 1h |
+| 3 ✅ | D7 Incidentes — semeado com 21/08 | — | — |
 | 4 | D3 Fluxo de envio | nada | 2h |
 | 5 | D4 Lista e segmentos | resposta sobre origem da lista + query de domínios | 2h |
 | 6 | D5 Entregabilidade | query de adiamento por dia + primeira campanha grande medida | 2h + espera |

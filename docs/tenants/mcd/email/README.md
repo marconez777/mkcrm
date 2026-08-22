@@ -21,10 +21,14 @@ related_docs:
 
 # E-mail do MCD — índice e estado conhecido
 
-> Este arquivo é o **índice**. Os documentos detalhados ainda não existem —
-> o plano para escrevê-los, com o que cada um precisa conter e de onde tirar
-> a evidência, está em [`ROADMAP_DOCUMENTACAO.md`](./ROADMAP_DOCUMENTACAO.md).
-> Enquanto eles não existem, o que se sabe está resumido aqui.
+> Este arquivo é o **índice**. Documentos prontos:
+>
+> - [`OPERACAO.md`](./OPERACAO.md) — **comece aqui se vai disparar algo**: estados, pausar/retomar, saída de emergência, checklist.
+> - [`INCIDENTES.md`](./INCIDENTES.md) — o que já quebrou, causa, correção, o que ficou.
+>
+> Os demais (integração Resend, fluxo de envio, lista, entregabilidade, métricas) estão
+> planejados em [`ROADMAP_DOCUMENTACAO.md`](./ROADMAP_DOCUMENTACAO.md). Enquanto não existem,
+> o que se sabe está resumido abaixo.
 
 ## 1. O que é diferente no MCD
 
