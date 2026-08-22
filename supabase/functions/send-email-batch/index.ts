@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
     }
 
 
-    return jsonResponse({ ok: true, sent: sentIds.length, skipped: skipped.length, total: jobs.length });
+    return jsonResponse({ ok: true, sent: sentCount, skipped: skipped.length, total: jobs.length });
   } catch (e) {
     console.error("send-email-batch error:", e);
     return jsonResponse({ error: String(e) }, { status: 500 });
