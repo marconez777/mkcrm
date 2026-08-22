@@ -368,15 +368,11 @@ Deno.serve(async (req) => {
     const json: any = await resp.json().catch(() => ({}));
 
     if (!resp.ok) {
-      // libera tudo
-      for (const p of prepared) {
-        if (p.useDedup) {
-          await supabase.from("email_send_dedup").delete()
-            .eq("clinic_id", clinic_id).eq("template_slug", template_slug)
-            .eq("email", p.email).eq("context", p.dedupContext);
-        }
-        await supabase.rpc("release_domain_warmup", { _clinic_id: clinic_id, _domain: fromDomain });
-      }
+      // G-35: libera tudo em lote (dedup, cota e warmup)
+      await releaseDedup(prepared as unknown as Cand[]);
+      await releaseQuota(prepared.length);
+      await releaseWarmup(prepared.length);
+
       // re-pending dos jobs — incrementa attempts individualmente pra evitar loop infinito
       const errMsg = json?.message || `batch failed ${resp.status}`;
       await Promise.all(prepared.map((p) =>
