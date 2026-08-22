@@ -7779,6 +7779,37 @@ export type Database = {
           sent_today: number
         }[]
       }
+      claim_email_queue_batch: {
+        Args: { _limit?: number }
+        Returns: {
+          attempts: number
+          clinic_id: string
+          created_at: string
+          error: string | null
+          force_send: boolean
+          from_domain_override: string | null
+          from_name_override: string | null
+          id: string
+          priority: number
+          recipient_email: string
+          recipient_name: string | null
+          related_lead_id: string | null
+          related_lead_table: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          template_slug: string | null
+          updated_at: string
+          variables: Json
+          variant_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "email_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_email_quota: {
         Args: { _clinic_id: string }
         Returns: {
@@ -7833,6 +7864,13 @@ export type Database = {
         Returns: {
           request_id: number
           slug: string
+        }[]
+      }
+      email_segment_counts: {
+        Args: { _clinic_id: string }
+        Returns: {
+          segment_id: string
+          total: number
         }[]
       }
       email_segment_preview: {
@@ -7959,6 +7997,15 @@ export type Database = {
         Returns: boolean
       }
       has_clinic_access: { Args: { _clinic_id: string }; Returns: boolean }
+      import_email_contacts: {
+        Args: {
+          _added_by?: string
+          _clinic_id: string
+          _rows: Json
+          _segment_id: string
+        }
+        Returns: Json
+      }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
         Returns: undefined
