@@ -34,8 +34,8 @@ related_docs:
 | # | Arquivo | Pergunta que responde | Urgência |
 |---|---|---|---|
 | D1 ✅ | [`OPERACAO.md`](./OPERACAO.md) | Como disparar, pausar, retomar e saber se deu certo — hoje, com o que existe | 🔴 antes do próximo disparo |
-| D2 | `INTEGRACAO_RESEND.md` | Conta, chave, webhook e domínio próprios: o que é, onde está, como se perde | 🔴 |
-| D3 | `FLUXO_DE_ENVIO.md` | O caminho de um e-mail do clique até o evento de entrega, com os limites em cada etapa | 🟠 |
+| D2 ✅ | [`INTEGRACAO_RESEND.md`](./INTEGRACAO_RESEND.md) | Conta, chave, webhook e domínio próprios: o que é, onde está, como se perde | 🔴 |
+| D3 ✅ | [`FLUXO_DE_ENVIO.md`](./FLUXO_DE_ENVIO.md) | O caminho de um e-mail do clique até o evento de entrega, com os limites em cada etapa | 🟠 |
 | D4 | `LISTA_E_SEGMENTOS.md` | De onde vem a lista, como entra, como é contada, o que a deduplica | 🟠 |
 | D5 | `ENTREGABILIDADE.md` | Reputação, ritmo, adiamentos, bounces — e a regra de aquecimento que o sistema ainda não tem | 🟠 |
 | D6 | `METRICAS_E_RELATORIOS.md` | O que cada número da tela significa, de onde vem, e onde ele mente | 🟡 |
@@ -229,9 +229,9 @@ executa); diagnóstico errado de truncagem (17.020 de 146k) e sua retratação.
 | Passo | O quê | Depende de | Esforço |
 |---|---|---|---|
 | 1 ✅ | D1 Operação — versão "estado de hoje" (21/08) | cron 58 documentado como pendência | — |
-| 2 | D2 Integração Resend | resposta do Natanael sobre tier | 1-2h |
+| 2 ✅ | D2 Integração Resend (21/08; tier da conta marcado ❓) | — | — |
 | 3 ✅ | D7 Incidentes — semeado com 21/08 | — | — |
-| 4 | D3 Fluxo de envio | nada | 2h |
+| 4 ✅ | D3 Fluxo de envio (21/08) | — | — |
 | 5 | D4 Lista e segmentos | resposta sobre origem da lista + query de domínios | 2h |
 | 6 | D5 Entregabilidade | query de adiamento por dia + primeira campanha grande medida | 2h + espera |
 | 7 | D6 Métricas | nada | 1h |

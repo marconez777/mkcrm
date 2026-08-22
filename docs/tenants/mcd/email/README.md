@@ -25,8 +25,10 @@ related_docs:
 >
 > - [`OPERACAO.md`](./OPERACAO.md) — **comece aqui se vai disparar algo**: estados, pausar/retomar, saída de emergência, checklist.
 > - [`INCIDENTES.md`](./INCIDENTES.md) — o que já quebrou, causa, correção, o que ficou.
+> - [`INTEGRACAO_RESEND.md`](./INTEGRACAO_RESEND.md) — conta, chave, webhook e domínio próprios; o que some e como aparece.
+> - [`FLUXO_DE_ENVIO.md`](./FLUXO_DE_ENVIO.md) — as oito etapas de um e-mail, com o limite e o sintoma de cada uma.
 >
-> Os demais (integração Resend, fluxo de envio, lista, entregabilidade, métricas) estão
+> Os demais (lista, entregabilidade, métricas) estão
 > planejados em [`ROADMAP_DOCUMENTACAO.md`](./ROADMAP_DOCUMENTACAO.md). Enquanto não existem,
 > o que se sabe está resumido abaixo.
 
