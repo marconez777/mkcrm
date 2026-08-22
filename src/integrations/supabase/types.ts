@@ -8011,6 +8011,10 @@ export type Database = {
         Args: { _clinic_id: string }
         Returns: undefined
       }
+      finalize_send_batch: {
+        Args: { _clinic_id: string; _rows: Json; _template_slug: string }
+        Returns: Json
+      }
       find_duplicate_leads_by_phone: {
         Args: { p_clinic_id: string }
         Returns: {
@@ -8189,6 +8193,20 @@ export type Database = {
       pick_rotation_domain: {
         Args: { _clinic_id: string; _pool: string }
         Returns: string
+      }
+      prepare_send_batch: {
+        Args: {
+          _clinic_id: string
+          _from_domain: string
+          _jobs: Json
+          _template_slug: string
+        }
+        Returns: {
+          outcome: string
+          queue_id: string
+          recipient: string
+          token: string
+        }[]
       }
       provision_builder_for_clinic: {
         Args: { _clinic_id: string }
