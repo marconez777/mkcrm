@@ -32,24 +32,15 @@ Deno.serve(async (req) => {
       .eq("status", "processing")
       .lt("updated_at", staleCutoff);
 
-    // R-7: prioridade primeiro (1=auth/urgente, 5=padrão, 9=baixa), depois horário
-    const { data: jobs } = await supabase
-      .from("email_queue")
-      .select("*")
-      .eq("status", "pending")
-      .lte("scheduled_at", nowIso)
-      .order("priority", { ascending: true })
-      .order("scheduled_at", { ascending: true })
-      .limit(BATCH_SIZE);
-
+    // R-7: atomic claim via RPC — FOR UPDATE SKIP LOCKED prevende duplo processamento
+    const { data: jobs, error: claimErr } = await supabase
+      .rpc("claim_email_queue_batch", { _limit: BATCH_SIZE });
+    if (claimErr) {
+      console.error("claim_email_queue_batch error:", claimErr);
+      return jsonResponse({ error: claimErr.message }, { status: 500 });
+    }
     if (!jobs?.length) return jsonResponse({ processed: 0 });
 
-    const ids = jobs.map((j: any) => j.id);
-    await supabase
-      .from("email_queue")
-      .update({ status: "processing", updated_at: nowIso })
-      .in("id", ids)
-      .eq("status", "pending");
 
     const sendUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`;
     const batchUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email-batch`;
