@@ -134,11 +134,36 @@ usuários precisam **logar de novo** (a senha continua a mesma, se os hashes
 vierem — conferir em M04 §1). A anon key e a service_role key também mudam:
 qualquer integração externa que use a anon key atual quebra.
 
-### R6 🟡 Governança pós-migração
+### R6 🔴 Governança pós-migração (agravado pela decisão de 22/08)
 
-Se o projeto Lovable continuar conectado ao Supabase próprio, o agente do
-Lovable também escreve migrations lá — e o drift entre repositório e produção
-volta. Precisa de regra explícita: **quem aplica DDL a partir de agora.**
+Com o front permanecendo no Lovable (§8), o agente do Lovable **também escreve
+migrations** no Supabase próprio. Sem regra, o drift entre repositório e
+produção — o achado que inviabilizou o plano de 13/08 — volta em semanas.
+
+Regra a valer a partir do cutover:
+
+| Quem | Pode | Não pode |
+|---|---|---|
+| Agente do Lovable | UI, componentes, páginas, chamadas ao client | criar/alterar tabela, função, trigger, policy, cron |
+| CLI (nós) | todo o DDL, via migration versionada e `supabase db push` | — |
+
+Sustentação: `supabase db dump` agendado, versionado no repo. Qualquer diferença
+entre o dump e as migrations é drift e vira issue. Isso é o que fecha o buraco de
+13/08 — e só funciona se a regra for respeitada de fato.
+
+### R7 🟠 O ato de conectar o Supabase próprio ao Lovable
+
+A documentação do Lovable é explícita: *"There is no automatic migration between
+the built-in backend (Cloud) and your own Supabase project, in either direction"*,
+e orienta "conectar o novo e pedir ao Lovable para reconstruir o schema".
+**Não é o que faremos** — o schema já vai estar restaurado. Ao conectar:
+
+- o Lovable pode sobrescrever `src/integrations/supabase/client.ts` e o env;
+- não deixar o agente "criar o schema"; a primeira instrução ao conectar é que
+  o banco já existe e está populado.
+
+Fazer esse passo **no ensaio (F2) também**, contra o projeto descartável, para
+descobrir o que ele mexe antes de fazer valendo.
 
 ## 5. Fases
 
@@ -148,9 +173,9 @@ volta. Precisa de regra explícita: **quem aplica DDL a partir de agora.**
 |---|---|
 | Plano Supabase | **Pro, US$ 25/mês** — inclui US$ 10 de compute (cobre o Micro, mesmo tier de hoje), 8 GB de disco, 250 GB de egress, backup diário 7 dias. O Free não serve: teto de 500 MB e pausa por inatividade. |
 | Região | **US West (Oregon)**, a mesma de hoje — mantém a latência para Evolution e Resend. |
-| Front-end | Ver §8. |
-| Domínio próprio para pixel/forms | Decidir agora: muda o que se reembute nos sites (R1). |
-| Janela | Depois da campanha de 146k. Não migrar com disparo em andamento. |
+| Front-end | ✅ **Decidido 22/08: fica no Lovable**, conectado ao Supabase próprio (§8). Ativa o R6 e o R7. |
+| Domínio próprio para pixel/forms | ⏳ Depende do M05: decidir depois de ver quantos sites existem e se ainda recebem tráfego (R1). |
+| Janela | ⏳ Campanha de 146k sem data. F1 e F2 seguem; o cutover fica em aberto. |
 
 ### F1 — Baseline e limpeza (antes de qualquer export)
 
@@ -233,18 +258,32 @@ fim da verificação.
 
 O projeto Lovable continua existindo e sendo pago à parte se o front ficar lá.
 
-## 8. Decisão em aberto — o front-end
+## 8. Decisão sobre o front-end — resolvida em 22/08
 
-Duas saídas, e elas mudam F3 e F4:
+**O front continua no Lovable**, conectado ao Supabase próprio (Settings →
+Connectors). Migra só o backend. Consequências que já estão incorporadas ao
+plano:
 
-- **Manter o front no Lovable**, conectando o projeto ao Supabase próprio
-  (Settings → Connectors). Menor mudança; o agente do Lovable continua útil para
-  UI. Custo: o R6 fica valendo, e conectar pode sobrescrever `client.ts` e o env.
-- **Tirar o front do Lovable** (Vercel/Netlify/Cloudflare, build Vite já pronto,
-  repo já no GitHub). Independência total e deploy por push. Custo: montar
-  hospedagem, domínio e CI, e perder o agente do Lovable para UI.
+- o projeto Lovable continua existindo e sendo pago à parte;
+- `LOVABLE_API_KEY` e o gateway de IA seguem disponíveis, o que **desarma o R4**
+  como bloqueio — vira só verificação no ensaio;
+- em compensação, **R6 vira crítico** (o agente escreve DDL no nosso banco) e
+  **R7 entra** (o ato de conectar mexe em `client.ts` e no env).
 
-## 9. Histórico
+A alternativa — tirar o front do Lovable para Vercel/Netlify/Cloudflare, com o
+build Vite pronto e o repo já no GitHub — fica registrada como saída futura, e
+fica mais barata depois desta migração do que antes dela.
+
+## 9. Próximo passo imediato
+
+1. Rodar `querys/migracao/M06` → decidir o que dropar/truncar.
+2. Rodar `M01`–`M05` → baseline arquivado em `querys/migracao/`.
+3. Ler `M05` §4 e §5 → fecha a decisão do domínio próprio (R1).
+4. Só então F2 (ensaio).
+
+## 10. Histórico
 
 - 2026-08-13 — migração dimensionada e **descartada** por falta de dump.
 - 2026-08-22 — export oficial muda a premissa; plano refeito no método restore.
+  Decidido: front fica no Lovable. Pendentes: domínio próprio (depende do M05) e
+  janela do cutover (depende da campanha de 146k).
