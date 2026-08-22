@@ -23,12 +23,17 @@ Para criar um agente novo para uma conta nova, siga o passo a passo em [`docs/pi
 | Slug | Clinic ID | Edge Function | Status | Docs |
 |---|---|---|---|---|
 | `clinica-or` | `cf038458-457d-4c1a-9ac4-c88c3c8353a1` | `pipeline-classify` (compartilhada — arquitetura V6, 5 agentes) | Produção | [README](./clinica-or/README.md) |
+| `mcd` | `3c48b379-f084-478d-a51c-9daa41ad661a` | — (não usa pipeline; e-mail em massa + SDR IA) | Produção | [README](./mcd/README.md) · [e-mail](./mcd/email/README.md) |
 
 > **Entrada recomendada para a Clínica ÓR (20/08/2026):** a pasta do tenant está
 > majoritariamente desatualizada desde o Bloco B (13/08). Comece pela
 > [auditoria de 20/08](./clinica-or/auditoria-20-08-2026.md) — estado real verificado
 > contra banco e código — e pelo
 > [roadmap de atualização](../roadmap/ROADMAP_DOCS_OR_POS_BLOCO_B.md).
+
+> **MCD (21/08/2026):** a pasta é centrada em **e-mail**, não em pipeline —
+> é o único tenant com conta Resend, webhook e domínio próprios e lista de
+> 163k. Comece por [`mcd/email/README.md`](./mcd/email/README.md).
 
 > Novos tenants serão adicionados sobre o registry `pipeline_tenant_classifiers`. Roadmap vivo em [`docs/roadmap/PIPELINE_TENANT_ROADMAP.md`](../roadmap/PIPELINE_TENANT_ROADMAP.md).
 
