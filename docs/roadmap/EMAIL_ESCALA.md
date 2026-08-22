@@ -135,6 +135,14 @@ como lembrete: **todo `delete`/`update` por e-mail nesse módulo precisa do par
 ser interrompida hoje, o botão falha em silêncio — só o `UPDATE` direto no SQL
 Editor resolve.
 
+## 4c. Continuação: velocidade
+
+O que este documento chama de F2.1/F2.3 ganhou um plano próprio e mais
+ambicioso em [`EMAIL_VELOCIDADE.md`](./EMAIL_VELOCIDADE.md): enfileiramento em
+fatias sem pg_cron (G-36), contadores por statement (G-06), duas RPCs que
+trocam ~107 idas ao banco por lote por 3, e worker em cadeias paralelas.
+Premissa explícita de lá: bounce não é prioridade.
+
 ## 5. Fases
 
 Ordem deliberada: **medir → SQL puro → edge → telas → estrutural**. As duas

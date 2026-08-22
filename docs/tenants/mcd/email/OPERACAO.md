@@ -215,9 +215,9 @@ update public.email_queue
 ## 8. Pendências que mudam este documento
 
 - Cron `enqueue-pending-campaigns` (job 58) não executa — causa não
-  identificada. Proposta em aberto: mover a checagem de campanhas pendentes
-  para dentro do `process-email-queue`, que roda a cada 10 s e comprovadamente
-  funciona. Quando resolver, a §5 vira apêndice.
+  identificada. **Plano pronto** em [`docs/roadmap/EMAIL_VELOCIDADE.md`](../../../roadmap/EMAIL_VELOCIDADE.md)
+  (Bloco A): enfileiramento em fatias por edge function, vigiado pelo
+  `process-email-queue`. Quando entrar, a §5 vira apêndice.
 - Ritmo automático (decisão de 21/08: o operador não escolhe número). Até lá,
   §5.2 é manual.
 - Confirmar o cron de campanhas agendadas (§3).

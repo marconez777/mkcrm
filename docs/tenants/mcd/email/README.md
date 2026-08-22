@@ -31,6 +31,8 @@ related_docs:
 > - [`ENTREGABILIDADE.md`](./ENTREGABILIDADE.md) — **o risco que código não cobre**: 16% de bounce, freios inativos, regra manual e proposta de ritmo automático.
 > - [`METRICAS_E_RELATORIOS.md`](./METRICAS_E_RELATORIOS.md) — de onde vem cada número e onde ele ainda mente.
 >
+> - [`../../../roadmap/EMAIL_VELOCIDADE.md`](../../../roadmap/EMAIL_VELOCIDADE.md) — **o plano para o envio voltar a funcionar e chegar ao teto de velocidade** (100–200k), com SQL e pedidos ao Lovable.
+>
 > O plano que gerou estes documentos está em [`ROADMAP_DOCUMENTACAO.md`](./ROADMAP_DOCUMENTACAO.md).
 > Abaixo, o resumo do que é diferente no MCD e o estado em 21/08.
 
