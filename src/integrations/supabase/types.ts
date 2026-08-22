@@ -2513,6 +2513,38 @@ export type Database = {
           },
         ]
       }
+      email_audience_counts: {
+        Row: {
+          clinic_id: string
+          segment_id: string
+          total: number
+          unsubscribed: number
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          segment_id: string
+          total?: number
+          unsubscribed?: number
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          segment_id?: string
+          total?: number
+          unsubscribed?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_audience_counts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_automation_enrollments: {
         Row: {
           automation_id: string
@@ -2671,6 +2703,9 @@ export type Database = {
           clinic_id: string
           created_at: string
           created_by: string | null
+          enqueue_cursor: string | null
+          enqueue_finished_at: string | null
+          enqueue_started_at: string | null
           enqueued_count: number
           error: string | null
           failed_count: number
@@ -2698,6 +2733,9 @@ export type Database = {
           clinic_id: string
           created_at?: string
           created_by?: string | null
+          enqueue_cursor?: string | null
+          enqueue_finished_at?: string | null
+          enqueue_started_at?: string | null
           enqueued_count?: number
           error?: string | null
           failed_count?: number
@@ -2725,6 +2763,9 @@ export type Database = {
           clinic_id?: string
           created_at?: string
           created_by?: string | null
+          enqueue_cursor?: string | null
+          enqueue_finished_at?: string | null
+          enqueue_started_at?: string | null
           enqueued_count?: number
           error?: string | null
           failed_count?: number
@@ -7941,6 +7982,10 @@ export type Database = {
           sequence_name: string
         }[]
       }
+      enqueue_campaign_chunk: {
+        Args: { _campaign_id: string; _limit?: number }
+        Returns: Json
+      }
       enqueue_campaign_recipients: {
         Args: { _campaign_id: string }
         Returns: Json
@@ -8162,6 +8207,7 @@ export type Database = {
         Args: { _lead_id: string }
         Returns: undefined
       }
+      refresh_email_audience_counts: { Args: never; Returns: Json }
       refresh_email_metrics_daily: { Args: { _days?: number }; Returns: number }
       register_failed_login: {
         Args: { _email: string }
