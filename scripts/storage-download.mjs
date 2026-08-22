@@ -27,8 +27,20 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
+
+// Saida silenciosa e o pior modo de falha num download de 900 MB: sem isto,
+// uma rejeicao nao tratada encerra o processo sem dizer nada.
+process.on("unhandledRejection", (e) => {
+  console.error("\n\n! rejeição não tratada:", e?.stack ?? e);
+  process.exit(1);
+});
+process.on("uncaughtException", (e) => {
+  console.error("\n\n! exceção não capturada:", e?.stack ?? e);
+  process.exit(1);
+});
+process.on("exit", (code) => {
+  if (code !== 0) console.error(`\n(processo encerrou com código ${code})`);
+});
 
 const REPO = path.resolve(import.meta.dirname, "..");
 const WORK = path.resolve(REPO, "..");
@@ -48,7 +60,7 @@ const ENV_FILE = process.env.STORAGE_ENV ?? firstExisting(
 );
 
 const BATCH = 100;        // teto da function
-const CONCURRENCY = 6;    // downloads simultâneos
+const CONCURRENCY = 4;    // downloads simultâneos
 const RETRIES = 3;
 
 // ── env ────────────────────────────────────────────────────────────────────
@@ -134,24 +146,22 @@ async function signBatch(env, bucket, paths) {
 
 async function download(url, dest, expectedSize) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  const tmp = `${dest}.part`;
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
-      const got = fs.statSync(tmp).size;
-      if (expectedSize > 0 && got !== expectedSize) {
-        throw new Error(`tamanho divergente: esperado ${expectedSize}, veio ${got}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (expectedSize > 0 && buf.length !== expectedSize) {
+        throw new Error(`tamanho divergente: esperado ${expectedSize}, veio ${buf.length}`);
       }
-      fs.renameSync(tmp, dest);
-      return got;
+      fs.writeFileSync(dest, buf);
+      return buf.length;
     } catch (e) {
-      try { fs.unlinkSync(tmp); } catch {}
       if (attempt === RETRIES) throw e;
       await sleep(1000 * attempt);
     }
   }
+  return 0;
 }
 
 // Caminhos do storage são POSIX e podem trazer o que o Windows recusa.
@@ -209,7 +219,7 @@ for (const bucket of [...new Set(files.map((f) => f.bucket))]) {
           continue;
         }
         try {
-          bytes += await download(u.signedUrl, safeDest(f.bucket, f.name), f.size);
+          bytes += (await download(u.signedUrl, safeDest(f.bucket, f.name), f.size)) ?? 0;
           ok++;
         } catch (e) {
           falhas.push({ ...f, erro: e.message });
