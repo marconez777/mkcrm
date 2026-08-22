@@ -381,7 +381,15 @@ EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 ## Apêndice B1 — contadores por statement
 
+> **DDL em `email_queue` só com a fila parada e com `lock_timeout`.** `CREATE
+> TRIGGER` precisa de lock exclusivo na tabela; o worker toca nela a cada 10 s.
+> Em 22/08 a primeira tentativa deu `40P01 deadlock detected`. O `SET LOCAL
+> lock_timeout = '3s'` faz o bloco desistir em vez de travar — repetir até passar.
+> Vale para qualquer `ALTER`/`CREATE TRIGGER` em `email_queue` e `email_logs`.
+
 ```sql
+SET LOCAL lock_timeout = '3s';
+
 CREATE OR REPLACE FUNCTION public.tg_email_queue_campaign_counters_stmt()
 RETURNS trigger
 LANGUAGE plpgsql
