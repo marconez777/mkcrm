@@ -161,8 +161,8 @@ Registrado para não surpreender:
 | Passo | Quem | O quê | Validação |
 |---|---|---|---|
 | 1 | usuário (SQL) | A1 diagnóstico | só informação |
-| 2 | usuário (SQL) | §A apêndice (colunas, índices, `enqueue_campaign_chunk`, unschedule 58) | `select proname from pg_proc where proname = 'enqueue_campaign_chunk'` |
-| 3 | Lovable | **P1** (`enqueue-campaign` + `dispatch-campaign`) | campanha para "Leads Site" (0 contatos) → `sent`, 0, sem erro, em < 1 min |
+| 2 ✅ | usuário (SQL) | §A apêndice (colunas, índices, `enqueue_campaign_chunk`, unschedule 58) | `select proname from pg_proc where proname = 'enqueue_campaign_chunk'` |
+| 3 ✅ | Lovable | **P1** (`enqueue-campaign` + `dispatch-campaign`) | campanha "teste" → `sent`, 0, `enqueue_finished_at` preenchido, sem erro (22/08 00:26) |
 | 4 | usuário (SQL) | §B1 trigger por statement | pausar/retomar uma campanha vazia não dá erro |
 | 5 | usuário (SQL) | §B2 + §B3 RPCs | `select proname from pg_proc where proname in ('prepare_send_batch','finalize_send_batch')` |
 | 6 | Lovable | **P3** (`send-email-batch`) | campanha de teste pequena (segmento estático de ~500) chega; `email_logs` com `resend_id`; `email_send_dedup.resend_id` preenchido |
@@ -420,9 +420,12 @@ BEGIN
 END;
 $fn$;
 
+-- Postgres nao aceita `UPDATE OF coluna` junto com transition tables
+-- (erro 0A000). Fica AFTER UPDATE; o filtro "so quando o status mudou" ja
+-- esta dentro da funcao.
 DROP TRIGGER IF EXISTS trg_email_queue_campaign_counters ON public.email_queue;
 CREATE TRIGGER trg_email_queue_campaign_counters
-AFTER UPDATE OF status ON public.email_queue
+AFTER UPDATE ON public.email_queue
 REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION public.tg_email_queue_campaign_counters_stmt();
