@@ -63,20 +63,78 @@ export oficial (pg_dump)  ──►  projeto Supabase novo  ──►  fixups  �
 | 3 | Sequences com valor corrente | ✅ | conferir em M01 §3 |
 | 4 | Usuários de auth (26) com hash de senha e identidades | ✅ (conferir) | restore + passo de correção de FK das identities |
 | 5 | Linhas de `cron.job` (40 jobs) | ⚠️ parcial | recriar com URL e chave **novas** |
-| 6 | Metadados de storage (4 buckets) | ✅ | restore |
-| 7 | Arquivos de storage | ❌ | baixar pela tela Storage, subir por CLI |
+| 6 | Metadados de storage (4 buckets, 13 policies) | ✅ | restore — menos `storage.protect_delete`, trigger específico do Lovable que **não** deve ser recriado |
+| 7 | Arquivos de storage (**5.449 arquivos, 900 MB**) | ❌ | script com service_role (ver R0) — a UI não serve |
 | 8 | Código das 105 edge functions | ❌ (está no repo) | `supabase functions deploy` |
-| 9 | Secrets das functions (17 nomes) | ❌ por design | redigitar no projeto novo |
+| 9 | Secrets das functions (17 nomes no código + as chaves Resend por clínica: `RESEND_API_KEY_MCD`, `_MKART`, `_OR`) | ❌ por design | redigitar no projeto novo |
 | 10 | Publicação de realtime (~20 tabelas) + REPLICA IDENTITY | ⚠️ | script explícito pós-restore |
 | 11 | Settings de banco (`app.settings.*`, `custom.*`) | ❌ | `ALTER DATABASE ... SET` |
 | 12 | Extensões (pg_cron, pg_net, vector, pgcrypto) | ⚠️ | habilitar antes do restore |
+
+## 3b. Levantamento medido — 22/08/2026
+
+Blocos M01–M06 rodados no SQL Editor, CSVs em `querys/migracao/`.
+
+| Medida | Valor |
+|---|---|
+| Banco | **2.710 MB** (era 5.828 MB antes da limpeza) — cabe folgado no teto de 5 GB |
+| PostgreSQL | 17.6 |
+| Tabelas / funções / triggers / policies / índices (public) | 144 / 300 / 110 / 205 / 466 |
+| Funções `SECURITY DEFINER` | 149 — **todas com `search_path` fixado** |
+| Views | 7 |
+| Usuários auth | 27, todos com hash `$2a$` (bcrypt) e 27 identidades `email` |
+| Buckets / arquivos | 4 / **5.449 arquivos, ~900 MB** |
+| Publicação realtime | 27 tabelas, 15 com `REPLICA IDENTITY FULL` |
+| Extensões | pg_cron 1.6.4, pg_net 0.20.0 (**schema `public`**), vector 0.8.0 (**`public`**), pgcrypto, uuid-ossp, pg_stat_statements, supabase_vault |
+| `vault.secrets` | **vazio** — nada de Vault para migrar |
+| Crons | 40 ativos |
+| Clínicas | 13 (ÓR 2.022 leads, sanapta 803, mkart 483, febracis-pri 469, mcd 331, fxn-capital 76, mk-espanha 8, e 6 com zero) |
+| Instâncias WhatsApp | **14**, em 8 clínicas, todas com webhook ativo |
+| Sites com pixel | **2 reais**: clinicaohrpsiquiatria.com (7.462 sessões) e mkart.com.br (1.295) |
+| Formulários embutidos | 3 cadastrados, **1 com uso** (Site ÓR, 226 envios) |
+
+Três achados colaterais, fora do escopo da migração mas registrados:
+
+- **Dois crons estão quebrados desde sempre.** `dedup-leads-tick-daily` e
+  `pipeline-position-auditor-daily` montam o header com
+  `current_setting('app.settings.service_role_key', true)`, e esse setting
+  **não existe** no banco (só `app.settings.jwt_exp`). Mandam
+  `Authorization: Bearer ` vazio → 401. `app_settings.cron_service_role_key`
+  também está com o valor literal `PLACEHOLDER`.
+- **6 dos 13 tenants do dispatcher não têm lead nenhum** (agenciaselance,
+  alessandracosta, byah, chatfunnel, dailson-almeida, fabio-santos) e mesmo
+  assim recebem um `http_post` por minuto cada. É ~46% do volume do pg_net.
+- O cron `invoke-pipeline-auto-finalize-or`, criado pela migration
+  `20260805131500`, **não existe no banco** — mais uma divergência repo × produção.
 
 ## 4. Riscos específicos deste projeto
 
 Os cinco primeiros não aparecem em nenhum guia genérico de migração. São o que
 pode quebrar silenciosamente.
 
-### R1 🔴 Pixel e formulários embutidos em sites de terceiros
+### R0 🔴 Storage tem 900 MB em 5.449 arquivos — a UI não dá conta
+
+Medido em 22/08: `chat-attachments` sozinho tem **5.007 arquivos e 892 MB**
+(mídia de WhatsApp, referenciada por `messages.media_url`), mais
+`estudo-cache` 424, `task-attachments` 16 e `email-assets` 2. A orientação do
+Lovable — *"Download storage files from the storage view"* — é clicar arquivo
+por arquivo. Inviável.
+
+- **Caminho:** script com `@supabase/supabase-js` usando a **service_role key
+  do projeto antigo** para listar e baixar tudo, e a do projeto novo para subir,
+  preservando `bucket_id` e caminho. Rodar **antes** do cutover (a mídia é
+  imutável) e repetir só o delta na janela.
+- Sem isso, toda mídia de conversa vira link quebrado.
+- URLs assinadas antigas morrem de qualquer forma; `email-assets` é público e
+  seus 2 arquivos podem estar embutidos em template de e-mail — conferir.
+
+### R1 🟡 Pixel e formulários embutidos em sites de terceiros (dimensionado: pequeno)
+
+O M05 mediu o tamanho real do problema e ele é **menor do que o temido**: só
+**dois domínios** têm pixel com tráfego (clinicaohrpsiquiatria.com, 7.462
+sessões, e mkart.com.br, 1.295 — ambos ativos hoje) e **um único formulário**
+tem uso (Site ÓR, 226 envios, ativo hoje). São três `<script>` para trocar, em
+dois sites.
 
 `SettingsForms.tsx:240-241` entrega ao cliente para colar no site dele:
 
@@ -100,8 +158,9 @@ os leads simplesmente param de chegar.
 
 `evolution-provision/index.ts:63` registra na Evolution
 `${SUPABASE_URL}/functions/v1/evolution-webhook?token=<token por instância>`.
-Esse endereço vive **na Evolution**, não no nosso banco. Depois do cutover, toda
-instância precisa de novo `setWebhook` apontando para o projeto novo,
+Esse endereço vive **na Evolution**, não no nosso banco. São **14 instâncias em
+8 clínicas** (M05 §3), todas com webhook ativo. Depois do cutover, cada uma
+precisa de novo `setWebhook` apontando para o projeto novo,
 preservando o `webhook_token` de cada uma (que vem no dump). Enquanto isso não
 for feito, **nenhuma mensagem de WhatsApp entra**.
 
@@ -112,8 +171,12 @@ key inteira no corpo do `net.http_post`; `dispatch_pipeline_classifiers()` tem a
 URL e a chave dentro do código da função. Outros usam
 `current_setting('app.settings.service_role_key')` e
 `current_setting('custom.project_ref')`, que precisam ser setados no banco novo
-com `ALTER DATABASE`. Todos os 40 precisam ser reescritos — M03 §1 traz o
-comando completo de cada um.
+com `ALTER DATABASE`. Medido: **26 dos 40** crons carregam URL do projeto, 24 deles com a chave anon
+embutida; 2 usam `current_setting` (e estão quebrados, ver §3b); os outros 14
+são SQL puro e atravessam sem mudança. M03 §1 traz o comando completo de cada
+um, e o M05 §1 aponta as 3 funções com URL/chave no corpo:
+`ai_usage_spend_guard`, `dispatch_pipeline_classifiers` e
+`notify_pipeline_deterministic`.
 
 ### R4 🟠 O classificador roda no gateway de IA do Lovable
 
@@ -129,9 +192,9 @@ a valer para o pipeline inteiro da ÓR.
 
 ### R5 🟠 Sessões caem e chaves públicas mudam
 
-O JWT secret do projeto novo é outro: todas as sessões ativas morrem e os 26
-usuários precisam **logar de novo** (a senha continua a mesma, se os hashes
-vierem — conferir em M04 §1). A anon key e a service_role key também mudam:
+O JWT secret do projeto novo é outro: as **37 sessões ativas** morrem e os **27
+usuários** precisam **logar de novo**. A senha continua a mesma: os hashes são
+bcrypt `$2a$` e atravessam no dump (M04 §1). A anon key e a service_role key também mudam:
 qualquer integração externa que use a anon key atual quebra.
 
 ### R6 🔴 Governança pós-migração (agravado pela decisão de 22/08)
@@ -189,13 +252,16 @@ descobrir o que ele mexe antes de fazer valendo.
 O ensaio é o que transforma o cutover em execução de roteiro. Fazer inteiro,
 mesmo que pareça redundante.
 
-1. Criar um projeto Supabase descartável.
+1. Criar um projeto Supabase descartável **em PostgreSQL 17**, com as extensões
+   nos mesmos schemas da origem — atenção a `pg_net` e `vector`, que aqui estão
+   em `public` e não no `extensions` padrão de um projeto novo.
 2. Export oficial → download → restore.
 3. Anotar **todo** erro do restore e a correção (ownership `supabase_admin`,
    roles com LOGIN, ordem das `auth.identities`, extensões que faltam).
 4. Habilitar extensões, aplicar os fixups, recriar crons e realtime.
 5. Deploy das 105 functions por CLI; conferir `verify_jwt` (31 são públicas —
    `supabase/config.toml` é a fonte).
+5b. Escrever e testar o script de cópia do storage (R0) — 5.449 arquivos.
 6. Redigitar os 17 secrets.
 7. Rodar M01–M05 no destino e **diferenciar contra os CSVs de F1**.
 8. Testar login real com senha de um usuário existente.
@@ -223,6 +289,7 @@ Ordem importa. Cada passo tem um "como sei que deu certo".
 | 5 | Restore no projeto novo | roteiro do F2, sem erro novo |
 | 6 | Fixups: extensões, settings, realtime, crons reescritos | M01–M04 batem com o baseline |
 | 7 | Deploy das functions + secrets | `functions list` = 105 |
+| 7b | Delta do storage (a carga cheia já foi antes) | contagem por bucket bate com M04 §4 |
 | 8 | Reapontar Evolution para o novo host, por instância | mensagem de teste entra |
 | 9 | Reapontar webhook do Resend, Eduzz e pagamentos | evento de teste chega |
 | 10 | Trocar env do front e publicar | login real funciona |
