@@ -7961,6 +7961,7 @@ export type Database = {
         }
         Returns: string
       }
+      enqueue_pending_campaigns: { Args: never; Returns: Json }
       ensure_system_form_assets: {
         Args: { _clinic_id: string }
         Returns: undefined
