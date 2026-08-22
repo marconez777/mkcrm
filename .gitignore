@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# migracao para Supabase proprio: credencial e backup ficam fora do repo
+.env.storage
+storage-backup/

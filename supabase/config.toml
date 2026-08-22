@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.enqueue-campaign]
 verify_jwt = false
+
+[functions.storage-export]
+verify_jwt = false
