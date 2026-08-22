@@ -7779,6 +7779,14 @@ export type Database = {
           sent_today: number
         }[]
       }
+      claim_domain_warmup_bulk: {
+        Args: { _clinic_id: string; _domain: string; _n: number }
+        Returns: {
+          daily_cap: number
+          granted: number
+          sent_today: number
+        }[]
+      }
       claim_email_queue_batch: {
         Args: { _limit?: number }
         Returns: {
@@ -7818,6 +7826,14 @@ export type Database = {
           sent_today: number
         }[]
       }
+      claim_email_quota_bulk: {
+        Args: { _clinic_id: string; _n: number }
+        Returns: {
+          granted: number
+          quota: number
+          sent_today: number
+        }[]
+      }
       claim_recipient_throttle: {
         Args: {
           _clinic_id: string
@@ -7828,6 +7844,18 @@ export type Database = {
           allowed: boolean
           sent: number
           window_start: string
+        }[]
+      }
+      claim_send_dedup_batch: {
+        Args: {
+          _clinic_id: string
+          _context: string
+          _emails: string[]
+          _template_slug: string
+        }
+        Returns: {
+          claimed: boolean
+          email: string
         }[]
       }
       cleanup_agent_caches: { Args: never; Returns: undefined }
@@ -7951,6 +7979,13 @@ export type Database = {
       generate_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string }
         Returns: string
+      }
+      generate_unsubscribe_tokens: {
+        Args: { _clinic_id: string; _emails: string[] }
+        Returns: {
+          email: string
+          token: string
+        }[]
       }
       get_active_builder_manual: {
         Args: never
@@ -8142,6 +8177,23 @@ export type Database = {
       release_domain_warmup: {
         Args: { _clinic_id: string; _domain: string }
         Returns: undefined
+      }
+      release_domain_warmup_bulk: {
+        Args: { _clinic_id: string; _domain: string; _n: number }
+        Returns: number
+      }
+      release_email_quota_bulk: {
+        Args: { _clinic_id: string; _n: number }
+        Returns: number
+      }
+      release_send_dedup_batch: {
+        Args: {
+          _clinic_id: string
+          _context: string
+          _emails: string[]
+          _template_slug: string
+        }
+        Returns: number
       }
       report_campaign_stats: {
         Args: { _campaign_id: string; _clinic_id: string }
